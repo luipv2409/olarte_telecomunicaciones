@@ -1,0 +1,47 @@
+# ==============================================================================
+# Docker Compose para esp32-vision-personas
+# Nombre de proyecto aislado para evitar colisiones con otros servicios
+# ==============================================================================
+name: esp32-vision-personas
+
+services:
+  vision-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # El mapeo de puertos exige explícitamente definir APP_BIND_IP y APP_HOST_PORT en .env
+    # Esto previene colisiones accidentales con otros servicios locales de Docker.
+    ports:
+      - "${APP_BIND_IP:?Error: Debes definir APP_BIND_IP en .env (ej: 127.0.0.1)}:${APP_HOST_PORT:?Error: Debes definir APP_HOST_PORT en .env (ej: 8088)}:8000"
+    environment:
+      - APP_BIND_IP=${APP_BIND_IP}
+      - APP_HOST_PORT=${APP_HOST_PORT}
+      - ESP32_BASE_URL=${ESP32_BASE_URL}
+      - CAPTURE_INTERVAL_SECONDS=${CAPTURE_INTERVAL_SECONDS:-2.0}
+      - DETECTION_CONFIDENCE=${DETECTION_CONFIDENCE:-0.45}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - DEEPSEEK_MODEL=${DEEPSEEK_MODEL:-deepseek-flash}
+      - DEEPSEEK_VISION_ENABLED=${DEEPSEEK_VISION_ENABLED:-false}
+    networks:
+      - esp32_vision_net
+    volumes:
+      - model_cache:/home/appuser/.config/Ultralytics
+      - ./app:/app/app
+    restart: unless-stopped
+    # Límites de recursos prudentes para no saturar la máquina anfitriona
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2048M
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+
+networks:
+  esp32_vision_net:
+    driver: bridge
+
+volumes:
+  model_cache:
+    name: esp32_vision_model_cache

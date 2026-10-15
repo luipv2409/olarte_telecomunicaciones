@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32-S3 OV5640 | Conteo de Personas</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="layout-container">
+        <!-- Encabezado -->
+        <header class="app-header">
+            <div class="header-brand">
+                <div class="brand-badge">ESP32-S3 + OV5640</div>
+                <h1>Monitor de Presencia y Detección Local</h1>
+            </div>
+            <div class="header-status">
+                <div id="camera-badge" class="status-pill status-disconnected">
+                    <span class="status-dot"></span>
+                    <span id="camera-status-text">Conectando...</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Grilla Principal -->
+        <main class="dashboard-grid">
+            <!-- Columna Izquierda: Visor de Video / Imagen -->
+            <section class="viewport-panel card">
+                <div class="panel-header">
+                    <div class="panel-title-group">
+                        <h2>Vista de Cámara</h2>
+                        <span id="capture-time" class="timestamp-label">Esperando cuadro...</span>
+                    </div>
+                    <div class="panel-actions">
+                        <label class="toggle-switch" title="Alternar entre imagen anotada con YOLO y fotograma original">
+                            <input type="checkbox" id="toggle-raw">
+                            <span class="slider"></span>
+                            <span class="switch-label">Modo Raw</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="camera-canvas-wrapper">
+                    <img id="camera-stream" src="/api/snapshot" alt="Captura ESP32-S3" class="camera-image">
+                    <div id="feed-loader" class="loader-overlay hidden">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+
+                <div class="viewport-footer">
+                    <span class="url-info">Origen: <code id="camera-origin">{{ esp32_url or "No configurado" }}</code></span>
+                    <span class="rate-info">Refresco: <code>{{ interval_seconds }}s</code> | FPS: <code id="fps-val">0.0</code></span>
+                </div>
+            </section>
+
+            <!-- Columna Derecha: Métricas y Controles -->
+            <aside class="metrics-panel">
+                <!-- Tarjeta de Monitoreo de Sensor Infrarrojo (Fase 1) -->
+                <div class="card ir-sensor-card" id="ir-card">
+                    <div class="card-header-row">
+                        <h3>Sensor Infrarrojo (GPIO 1)</h3>
+                        <span class="badge-tag">Fase 1</span>
+                    </div>
+                    
+                    <div class="ir-status-box is-free" id="ir-status-box">
+                        <div class="ir-indicator-light" id="ir-indicator-light"></div>
+                        <div class="ir-status-info">
+                            <span class="ir-state-title" id="ir-state-text">LIBRE</span>
+                            <span class="ir-state-subtitle" id="ir-sub-text">Haz óptico despejado</span>
+                        </div>
+                    </div>
+
+                    <div class="ir-metrics-grid">
+                        <div class="ir-metric-item">
+                            <span class="ir-metric-label">Activaciones:</span>
+                            <span class="ir-metric-val font-mono text-cyan" id="ir-activations-count">0</span>
+                        </div>
+                        <div class="ir-metric-item">
+                            <span class="ir-metric-label">Última detección:</span>
+                            <span class="ir-metric-val font-mono" id="ir-last-time">--:--:--</span>
+                        </div>
+                    </div>
+
+                    <div class="ir-history-box">
+                        <div class="ir-history-title">Registro de Eventos IR:</div>
+                        <div class="ir-events-list" id="ir-events-list">
+                            <div class="ir-event-empty">Esperando interrupciones...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tarjeta Principal: Conteo -->
+                <div class="card metric-card hero-metric">
+                    <div class="metric-header">
+                        <h3>Personas Visibles</h3>
+                        <span class="badge-tag">YOLOv8 CPU</span>
+                    </div>
+                    <div class="metric-value-container">
+                        <span id="person-count" class="metric-number">--</span>
+                        <span class="metric-unit">en cuadro</span>
+                    </div>
+                    <p class="metric-footer-text">
+                        Conteo instantáneo de presencia en el encuadre actual. No mide flujo acumulativo.
+                    </p>
+                </div>
+
+                <!-- Tarjeta de Rendimiento e Inferencia -->
+                <div class="card stats-card">
+                    <h3>Telemetría del Detector</h3>
+                    <div class="stat-row">
+                        <span class="stat-label">Tiempo de inferencia:</span>
+                        <span id="inference-time" class="stat-val font-mono">-- ms</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Umbral de confianza:</span>
+                        <span class="stat-val font-mono">{{ (confidence * 100)|int }}%</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Cuadros procesados:</span>
+                        <span id="frames-total" class="stat-val font-mono">0</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Estado del detector:</span>
+                        <span id="detector-status" class="stat-val text-success">Activo</span>
+                    </div>
+                </div>
+
+                <!-- Tarjeta de Análisis con DeepSeek (Opcional) -->
+                <div class="card deepseek-card">
+                    <div class="card-header-row">
+                        <h3>DeepSeek Vision (Nube)</h3>
+                        <span id="deepseek-badge" class="badge-pill">
+                            {% if deepseek_configured %}Listo{% else %}Inactivo{% endif %}
+                        </span>
+                    </div>
+                    <p class="deepseek-description">
+                        Análisis secundario multimodelo ejecutado bajo demanda directa.
+                    </p>
+
+                    <div class="deepseek-controls">
+                        <button id="btn-deepseek-analyze" class="btn btn-primary" {% if not deepseek_configured %}disabled{% endif %}>
+                            <span class="btn-icon">⚡</span>
+                            <span id="btn-deepseek-text">Consultar DeepSeek</span>
+                        </button>
+                    </div>
+
+                    <div id="deepseek-result-box" class="deepseek-output hidden">
+                        <div class="deepseek-output-header">Respuesta DeepSeek:</div>
+                        <div id="deepseek-output-content" class="deepseek-output-body"></div>
+                        <div class="deepseek-privacy-notice">
+                            ⚠️ Esta captura específica fue enviada a la API de DeepSeek bajo tu autorización explícita.
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </main>
+
+        <!-- Pie de página y aviso legal -->
+        <footer class="app-footer">
+            <p>
+                <strong>Aviso de privacidad y alcance técnico:</strong> El conteo corresponde exclusivamente a personas detectadas en cada cuadro procesado de forma local. No almacena imágenes permanentemente ni aplica reconocimiento facial o identificación biométrica.
+            </p>
+        </footer>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

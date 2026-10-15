@@ -1,0 +1,73 @@
+# ==============================================================================
+# Docker Compose para recinto-control (Fase 0 y Fase 1)
+# Totalmente aislado: Base de datos sin publicar al host y red privada propia
+# ==============================================================================
+name: recinto-control
+
+services:
+  postgres_db:
+    image: postgres:15-alpine
+    container_name: recinto_postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-recinto_control_db}
+      POSTGRES_USER: ${POSTGRES_USER:-recinto_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Error: Debes definir POSTGRES_PASSWORD en .env}
+    # REGLA CRÍTICA: NO publicar el puerto 5432 al host para evitar conflictos con otros PostgreSQL
+    expose:
+      - "5432"
+    volumes:
+      - recinto_postgres_data:/var/lib/postgresql/data
+    networks:
+      - recinto_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-recinto_admin} -d ${POSTGRES_DB:-recinto_control_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+
+  backend_api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: recinto_backend_api
+    # El puerto del host se declara obligatoriamente por variable para no asumir que ninguno está libre
+    ports:
+      - "${HOST_BIND_IP:-127.0.0.1}:${HOST_HTTP_PORT:?Error: Debes definir HOST_HTTP_PORT en .env (ej. 8089)}:8000"
+    environment:
+      - HOST_HTTP_PORT=${HOST_HTTP_PORT}
+      - POSTGRES_DB=${POSTGRES_DB:-recinto_control_db}
+      - POSTGRES_USER=${POSTGRES_USER:-recinto_admin}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_HOST=postgres_db
+      - POSTGRES_PORT=5432
+      - DEVICE_API_SECRET=${DEVICE_API_SECRET:?Error: Debes definir DEVICE_API_SECRET en .env}
+      - ESP32_BASE_URL=${ESP32_BASE_URL:-http://192.168.1.111}
+    volumes:
+      - ./app:/app/app:ro
+    networks:
+      - recinto_net
+    depends_on:
+      postgres_db:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
+          memory: 1024M
+
+networks:
+  recinto_net:
+    name: recinto_control_net
+    driver: bridge
+
+volumes:
+  recinto_postgres_data:
+    name: recinto_postgres_data

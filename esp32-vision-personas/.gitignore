@@ -1,0 +1,31 @@
+# Archivos de entorno y credenciales (REGLA CRÍTICA DE SEGURIDAD)
+.env
+*.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+
+# Entornos virtuales
+venv/
+.venv/
+env/
+
+# Modelos y caches de YOLO / Ultralytics
+*.pt
+*.onnx
+runs/
+.ultralytics/
+
+# IDEs y SO
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

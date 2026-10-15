@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recinto Control | Panel de Acceso y Sensores</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-wrapper">
+        <header class="navbar">
+            <div class="brand">
+                <span class="brand-tag">Fase 1: IR + Telemetría</span>
+                <h1>Control de Acceso al Recinto</h1>
+            </div>
+            <div class="device-status-pill" id="device-pill">
+                <span class="dot"></span>
+                <span id="device-status-text">Verificando...</span>
+            </div>
+        </header>
+
+        <main class="grid-layout">
+            <!-- Columna de Métricas Principales -->
+            <section class="kpi-grid">
+                <div class="card kpi-card">
+                    <span class="kpi-title">Eventos IR Disparados</span>
+                    <div class="kpi-value-row">
+                        <span id="kpi-ir-interrupted" class="kpi-number text-accent">0</span>
+                        <span class="kpi-label">interrupciones</span>
+                    </div>
+                    <p class="kpi-desc">Objeto o persona detectada en el umbral óptico.</p>
+                </div>
+
+                <div class="card kpi-card">
+                    <span class="kpi-title">Eventos IR Despejados</span>
+                    <div class="kpi-value-row">
+                        <span id="kpi-ir-cleared" class="kpi-number text-green">0</span>
+                        <span class="kpi-label">despejados</span>
+                    </div>
+                    <p class="kpi-desc">El haz óptico volvió a quedar libre.</p>
+                </div>
+
+                <div class="card kpi-card">
+                    <span class="kpi-title">Personas en Cuadro (Cámara)</span>
+                    <div class="kpi-value-row">
+                        <span id="kpi-personas-visibles" class="kpi-number text-cyan">--</span>
+                        <span class="kpi-label">en vista</span>
+                    </div>
+                    <p class="kpi-desc">Estimación instantánea proveniente del servicio YOLO.</p>
+                </div>
+
+                <div class="card kpi-card warning-card">
+                    <span class="kpi-title">Cruces Confirmados</span>
+                    <div class="kpi-value-row">
+                        <span class="kpi-badge-na">No disponible</span>
+                    </div>
+                    <p class="kpi-desc">
+                        ⚠️ <strong>Limitación técnica real:</strong> Un único sensor IR no permite inferir dirección de entrada/salida. Requiere Fase 6 con segundo IR.
+                    </p>
+                </div>
+            </section>
+
+            <!-- Telemetría del Dispositivo -->
+            <section class="card telemetry-card">
+                <h2>Telemetría del Controlador ESP32-S3</h2>
+                <div class="telemetry-grid">
+                    <div class="telemetry-item">
+                        <span class="item-label">ID Dispositivo:</span>
+                        <span id="val-device-id" class="item-val font-mono">--</span>
+                    </div>
+                    <div class="telemetry-item">
+                        <span class="item-label">IP en LAN:</span>
+                        <span id="val-ip" class="item-val font-mono">--</span>
+                    </div>
+                    <div class="telemetry-item">
+                        <span class="item-label">Firmware:</span>
+                        <span id="val-firmware" class="item-val font-mono">--</span>
+                    </div>
+                    <div class="telemetry-item">
+                        <span class="item-label">Señal Wi-Fi (RSSI):</span>
+                        <span id="val-rssi" class="item-val font-mono">-- dBm</span>
+                    </div>
+                    <div class="telemetry-item">
+                        <span class="item-label">Último Latido (UTC):</span>
+                        <span id="val-last-seen" class="item-val font-mono">--</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tabla de Auditoría de Eventos -->
+            <section class="card table-card">
+                <div class="table-header">
+                    <h2>Historial de Eventos de Sensores (Persistencia en DB)</h2>
+                    <span class="badge-count" id="events-count-badge">0 eventos</span>
+                </div>
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Fecha y Hora (UTC)</th>
+                                <th>Sensor</th>
+                                <th>Tipo de Evento</th>
+                                <th>Origen</th>
+                                <th>Event ID</th>
+                            </tr>
+                        </thead>
+                        <tbody id="events-table-body">
+                            <tr>
+                                <td colspan="5" class="empty-state">Esperando eventos del sensor...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+
+        <footer class="footer">
+            <p>
+                <strong>Recinto Control — Fase 1 (MVP):</strong> Base de datos PostgreSQL aislada con deduplicación por clave única. Los eventos de simulación están expresamente etiquetados.
+            </p>
+        </footer>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
