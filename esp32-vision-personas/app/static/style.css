@@ -116,6 +116,139 @@ body {
     box-shadow: 0 0 8px var(--accent-red);
 }
 
+/* ==============================================================================
+   PESTAÑAS DE NAVEGACIÓN (TABS)
+   ============================================================================== */
+.tabs-nav {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    background: rgba(17, 24, 39, 0.7);
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 8px;
+    flex-wrap: wrap;
+}
+
+.tab-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 20px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    font-family: var(--font-sans);
+    font-size: 0.92rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    user-select: none;
+}
+
+.tab-btn:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-primary);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.tab-btn.active {
+    background: linear-gradient(135deg, rgba(14, 165, 233, 0.18) 0%, rgba(99, 102, 241, 0.18) 100%);
+    border: 1px solid rgba(56, 189, 248, 0.45);
+    color: #ffffff;
+    box-shadow: 0 4px 18px -4px rgba(14, 165, 233, 0.35);
+}
+
+.tab-btn-icon {
+    font-size: 1.15rem;
+    line-height: 1;
+}
+
+.tab-btn-label {
+    letter-spacing: -0.01em;
+}
+
+.tab-pill-badge {
+    font-size: 0.7rem;
+    font-weight: 700;
+    font-family: var(--font-mono);
+    padding: 2px 8px;
+    border-radius: 9999px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.2s ease;
+}
+
+.live-pulse {
+    background: rgba(16, 185, 129, 0.2);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.live-pulse::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #10b981;
+    box-shadow: 0 0 6px #10b981;
+    animation: livePulseAnim 1.8s infinite;
+}
+
+@keyframes livePulseAnim {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.8); }
+}
+
+.badge-hw-tab-ok {
+    background: rgba(16, 185, 129, 0.2);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.badge-hw-tab-warn {
+    background: rgba(245, 158, 11, 0.2);
+    color: #fbbf24;
+    border: 1px solid rgba(245, 158, 11, 0.4);
+    animation: blinkWarn 1s infinite alternate;
+}
+
+.badge-hw-tab-error {
+    background: rgba(239, 68, 68, 0.2);
+    color: #f87171;
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    animation: pulseErr 1.2s infinite;
+}
+
+/* Contenedores de Pestaña */
+.tab-content {
+    width: 100%;
+}
+
+.tab-pane {
+    display: none;
+}
+
+.tab-pane.active {
+    display: block;
+    animation: tabFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes tabFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
 /* Grid Layout */
 .dashboard-grid {
     display: grid;
@@ -1316,7 +1449,189 @@ input:checked + .slider:before {
     to { opacity: 1; box-shadow: 0 0 10px #f59e0b; }
 }
 
+/* ==============================================================================
+   SUBTÍTULOS, KPIS ELÉCTRICOS Y GUÍA DE RESOLUCIÓN DE FALLAS
+   ============================================================================== */
+.panel-subtitle-text {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-top: 4px;
+}
 
+.hw-kpis-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+}
 
+.hw-kpi-card {
+    background: rgba(15, 23, 42, 0.75);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    transition: transform 0.2s ease, border-color 0.2s ease;
+}
 
+.hw-kpi-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(56, 189, 248, 0.3);
+}
 
+.hw-kpi-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+}
+
+.hw-kpi-val {
+    font-size: 1.3rem;
+    font-weight: 800;
+    font-family: var(--font-mono);
+}
+
+.hw-kpi-desc {
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+}
+
+/* Fila Inferior de Diagnósticos y Hoja Técnica */
+.hw-docs-grid {
+    display: grid;
+    grid-template-columns: 1.3fr 1fr;
+    gap: 16px;
+}
+
+@media (max-width: 900px) {
+    .hw-docs-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.hw-docs-card {
+    background: rgba(15, 23, 42, 0.75);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.hw-docs-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    padding-bottom: 10px;
+}
+
+.hw-docs-card-header h4 {
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: #f1f5f9;
+}
+
+.table-responsive {
+    overflow-x: auto;
+}
+
+.hw-trouble-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+    text-align: left;
+}
+
+.hw-trouble-table th {
+    padding: 8px 10px;
+    background: rgba(30, 41, 59, 0.5);
+    color: #94a3b8;
+    font-weight: 600;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.hw-trouble-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    color: #cbd5e1;
+    vertical-align: middle;
+}
+
+.code-badge {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-weight: 700;
+    font-size: 0.72rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.code-ok {
+    background: rgba(16, 185, 129, 0.15);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.code-warn {
+    background: rgba(245, 158, 11, 0.15);
+    color: #fbbf24;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.code-err {
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.code-info {
+    background: rgba(56, 189, 248, 0.15);
+    color: #38bdf8;
+    border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
+.hw-specs-content {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.hw-spec-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    background: rgba(30, 41, 59, 0.4);
+    padding: 8px 12px;
+    border-radius: 6px;
+    border-left: 3px solid #38bdf8;
+}
+
+.hw-spec-title {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #e2e8f0;
+}
+
+.hw-spec-desc {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    line-height: 1.4;
+}
+
+.hw-spec-desc b {
+    color: #38bdf8;
+}
+
+.hw-spec-desc code {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 1px 4px;
+    border-radius: 3px;
+    color: #34d399;
+    font-family: var(--font-mono);
+}

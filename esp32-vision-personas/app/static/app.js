@@ -56,6 +56,43 @@ document.addEventListener("DOMContentLoaded", () => {
     const virtualBuzzerLed = document.getElementById("virtual-buzzer-led");
     const virtualBuzzerText = document.getElementById("virtual-buzzer-text");
 
+    // Tab Navigation Elements
+    const tabButtons = document.querySelectorAll(".tab-btn");
+    const tabPanes = document.querySelectorAll(".tab-pane");
+    const tabBadgeHw = document.getElementById("tab-badge-hw");
+
+    function switchTab(targetTabId) {
+        tabButtons.forEach(btn => {
+            const isActive = btn.getAttribute("data-tab") === targetTabId;
+            btn.classList.toggle("active", isActive);
+            btn.setAttribute("aria-selected", isActive ? "true" : "false");
+        });
+
+        tabPanes.forEach(pane => {
+            const isActive = pane.id === targetTabId;
+            pane.classList.toggle("active", isActive);
+        });
+
+        try {
+            localStorage.setItem("olarte_active_tab", targetTabId);
+        } catch (e) {}
+    }
+
+    tabButtons.forEach(btn => {
+        btn.addEventListener("click", () => {
+            const targetId = btn.getAttribute("data-tab");
+            if (targetId) switchTab(targetId);
+        });
+    });
+
+    // Restaurar pestaña activa anterior si existe
+    try {
+        const savedTab = localStorage.getItem("olarte_active_tab");
+        if (savedTab && document.getElementById(savedTab)) {
+            switchTab(savedTab);
+        }
+    } catch (e) {}
+
     // Sintetizador Web Audio API para simular y reproducir la frecuencia del buzzer (2700 Hz)
     let audioCtx = null;
     function playBuzzerTone(durationMs, count = 1, intervalMs = 80) {
@@ -278,17 +315,29 @@ document.addEventListener("DOMContentLoaded", () => {
                         hwCamBadge.textContent = data.camera.connected ? "🟢 OK (VGA 640x480)" : "🔴 DESCONECTADO";
                     }
 
-                    // 4. Pastilla de Estado Global
+                    // 4. Pastilla de Estado Global & Badge de Pestaña
                     if (hwGlobalPill && hwGlobalText) {
                         if (hw.rc522 && hw.rc522.status !== "OK") {
                             hwGlobalPill.className = "status-pill status-disconnected";
                             hwGlobalText.textContent = "⚠️ REVISAR CABLEADO SPI";
+                            if (tabBadgeHw) {
+                                tabBadgeHw.className = "tab-pill-badge badge-hw-tab-warn";
+                                tabBadgeHw.textContent = hw.rc522.status && hw.rc522.status.includes("SHORT") ? "CORTO 21/47" : "FALLA SPI";
+                            }
                         } else if (!data.camera.connected) {
                             hwGlobalPill.className = "status-pill status-disconnected";
                             hwGlobalText.textContent = "⚠️ CÁMARA DESCONECTADA";
+                            if (tabBadgeHw) {
+                                tabBadgeHw.className = "tab-pill-badge badge-hw-tab-error";
+                                tabBadgeHw.textContent = "CAM OFF";
+                            }
                         } else {
                             hwGlobalPill.className = "status-pill status-connected";
                             hwGlobalText.textContent = "HARDWARE 100% OPERATIVO";
+                            if (tabBadgeHw) {
+                                tabBadgeHw.className = "tab-pill-badge badge-hw-tab-ok";
+                                tabBadgeHw.textContent = "100% OK";
+                            }
                         }
                     }
                 }

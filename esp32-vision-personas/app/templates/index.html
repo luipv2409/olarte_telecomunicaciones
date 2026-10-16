@@ -25,399 +25,525 @@
             </div>
         </header>
 
-        <!-- Grilla Principal -->
-        <main class="dashboard-grid">
-            <!-- Columna Izquierda: Visor de Video / Imagen -->
-            <section class="viewport-panel card">
-                <div class="panel-header">
-                    <div class="panel-title-group">
-                        <h2>Vista de Cámara</h2>
-                        <span id="capture-time" class="timestamp-label">Esperando cuadro...</span>
-                    </div>
-                    <div class="panel-actions">
-                        <label class="toggle-switch" title="Alternar entre imagen anotada con YOLO y fotograma original">
-                            <input type="checkbox" id="toggle-raw">
-                            <span class="slider"></span>
-                            <span class="switch-label">Modo Raw</span>
-                        </label>
-                    </div>
-                </div>
+        <!-- Barra de Navegación por Pestañas -->
+        <nav class="tabs-nav" role="tablist" aria-label="Navegación del sistema">
+            <button class="tab-btn active" id="tab-btn-monitoring" data-tab="tab-monitoring" role="tab" aria-selected="true" aria-controls="tab-monitoring">
+                <span class="tab-btn-icon">🎥</span>
+                <span class="tab-btn-label">Monitoreo & Control de Acceso</span>
+                <span class="tab-pill-badge live-pulse">En vivo</span>
+            </button>
+            <button class="tab-btn" id="tab-btn-hardware" data-tab="tab-hardware" role="tab" aria-selected="false" aria-controls="tab-hardware">
+                <span class="tab-btn-icon">🛠️</span>
+                <span class="tab-btn-label">Salud del Circuito & Diagnóstico de Pines</span>
+                <span class="tab-pill-badge badge-hw-tab-ok" id="tab-badge-hw">100% OK</span>
+            </button>
+        </nav>
 
-                <div class="camera-canvas-wrapper">
-                    <img id="camera-stream" src="/api/snapshot" alt="Captura ESP32-S3" class="camera-image">
-                    <div id="feed-loader" class="loader-overlay hidden">
-                        <div class="spinner"></div>
-                    </div>
-                </div>
-
-                <div class="viewport-footer">
-                    <span class="url-info">Origen: <code id="camera-origin">{{ esp32_url or "No configurado" }}</code></span>
-                    <span class="rate-info">Refresco: <code>{{ interval_seconds }}s</code> | FPS: <code id="fps-val">0.0</code></span>
-                </div>
-            </section>
-
-            <!-- Columna Derecha: Métricas y Controles -->
-            <aside class="metrics-panel">
-                <!-- Tarjeta de Control de Acceso RFID (Fase 2) -->
-                <div class="card rfid-sensor-card" id="rfid-card">
-                    <div class="card-header-row">
-                        <h3>Acceso RFID (RC522)</h3>
-                        <span class="badge-tag tag-fase2">Fase 2</span>
-                    </div>
-                    
-                    <div class="rfid-status-box is-idle" id="rfid-status-box">
-                        <div class="rfid-icon-circle" id="rfid-icon-circle">
-                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <rect x="2" y="5" width="20" height="14" rx="2"></rect>
-                                <line x1="2" y1="10" x2="22" y2="10"></line>
-                            </svg>
+        <!-- Contenedor Principal de Pestañas -->
+        <div class="tab-content">
+            <!-- ==============================================================================
+                 PESTAÑA 1: MONITOREO EN VIVO & CONTROL DE ACCESO
+                 ============================================================================== -->
+            <div id="tab-monitoring" class="tab-pane active" role="tabpanel" aria-labelledby="tab-btn-monitoring">
+                <main class="dashboard-grid">
+                    <!-- Columna Izquierda: Visor de Video / Imagen -->
+                    <section class="viewport-panel card">
+                        <div class="panel-header">
+                            <div class="panel-title-group">
+                                <h2>Vista de Cámara</h2>
+                                <span id="capture-time" class="timestamp-label">Esperando cuadro...</span>
+                            </div>
+                            <div class="panel-actions">
+                                <label class="toggle-switch" title="Alternar entre imagen anotada con YOLO y fotograma original">
+                                    <input type="checkbox" id="toggle-raw">
+                                    <span class="slider"></span>
+                                    <span class="switch-label">Modo Raw</span>
+                                </label>
+                            </div>
                         </div>
-                        <div class="rfid-status-info">
-                            <span class="rfid-state-title" id="rfid-status-text">ESPERANDO TARJETA</span>
-                            <span class="rfid-state-subtitle" id="rfid-sub-text">Acerca tu tarjeta o llavero al lector</span>
-                        </div>
-                    </div>
 
-                    <div class="rfid-metrics-grid">
-                        <div class="rfid-metric-item">
-                            <span class="rfid-metric-label">Último UID Leído:</span>
-                            <span class="rfid-metric-val font-mono text-cyan" id="rfid-last-uid">--</span>
+                        <div class="camera-canvas-wrapper">
+                            <img id="camera-stream" src="/api/snapshot" alt="Captura ESP32-S3" class="camera-image">
+                            <div id="feed-loader" class="loader-overlay hidden">
+                                <div class="spinner"></div>
+                            </div>
                         </div>
-                        <div class="rfid-metric-item">
-                            <span class="rfid-metric-label">Titular / Estado:</span>
-                            <span class="rfid-metric-val font-mono text-emerald" id="rfid-card-holder">Esperando lectura</span>
+
+                        <div class="viewport-footer">
+                            <span class="url-info">Origen: <code id="camera-origin">{{ esp32_url or "No configurado" }}</code></span>
+                            <span class="rate-info">Refresco: <code>{{ interval_seconds }}s</code> | FPS: <code id="fps-val">0.0</code></span>
                         </div>
-                        <div class="rfid-metric-item">
-                            <span class="rfid-metric-label">Accesos Registrados:</span>
-                            <span class="rfid-metric-val font-mono text-success" id="rfid-reads-count">0</span>
+                    </section>
+
+                    <!-- Columna Derecha: Métricas y Controles -->
+                    <aside class="metrics-panel">
+                        <!-- Tarjeta de Control de Acceso RFID (Fase 2) -->
+                        <div class="card rfid-sensor-card" id="rfid-card">
+                            <div class="card-header-row">
+                                <h3>Acceso RFID (RC522)</h3>
+                                <span class="badge-tag tag-fase2">Fase 2</span>
+                            </div>
+                            
+                            <div class="rfid-status-box is-idle" id="rfid-status-box">
+                                <div class="rfid-icon-circle" id="rfid-icon-circle">
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <rect x="2" y="5" width="20" height="14" rx="2"></rect>
+                                        <line x1="2" y1="10" x2="22" y2="10"></line>
+                                    </svg>
+                                </div>
+                                <div class="rfid-status-info">
+                                    <span class="rfid-state-title" id="rfid-status-text">ESPERANDO TARJETA</span>
+                                    <span class="rfid-state-subtitle" id="rfid-sub-text">Acerca tu tarjeta o llavero al lector</span>
+                                </div>
+                            </div>
+
+                            <div class="rfid-metrics-grid">
+                                <div class="rfid-metric-item">
+                                    <span class="rfid-metric-label">Último UID Leído:</span>
+                                    <span class="rfid-metric-val font-mono text-cyan" id="rfid-last-uid">--</span>
+                                </div>
+                                <div class="rfid-metric-item">
+                                    <span class="rfid-metric-label">Titular / Estado:</span>
+                                    <span class="rfid-metric-val font-mono text-emerald" id="rfid-card-holder">Esperando lectura</span>
+                                </div>
+                                <div class="rfid-metric-item">
+                                    <span class="rfid-metric-label">Accesos Registrados:</span>
+                                    <span class="rfid-metric-val font-mono text-success" id="rfid-reads-count">0</span>
+                                </div>
+                                <div class="rfid-metric-item">
+                                    <span class="rfid-metric-label">Hora de Registro:</span>
+                                    <span class="rfid-metric-val font-mono" id="rfid-last-time">--:--:--</span>
+                                </div>
+                            </div>
+
+                            <div class="rfid-known-cards-box">
+                                <div class="ir-history-title">Credenciales Registradas en el Recinto:</div>
+                                <div class="rfid-cards-list" id="rfid-cards-list">
+                                    <!-- Inyectado dinámicamente -->
+                                </div>
+                            </div>
                         </div>
-                        <div class="rfid-metric-item">
-                            <span class="rfid-metric-label">Hora de Registro:</span>
-                            <span class="rfid-metric-val font-mono" id="rfid-last-time">--:--:--</span>
+
+                        <!-- Tarjeta de Monitoreo de Sensor Infrarrojo (Fase 1) -->
+                        <div class="card ir-sensor-card" id="ir-card">
+                            <div class="card-header-row">
+                                <h3>Sensor Infrarrojo de Paso (GPIO 1)</h3>
+                                <span class="badge-tag">Fase 1</span>
+                            </div>
+                            
+                            <div class="ir-status-box is-free" id="ir-status-box">
+                                <div class="ir-indicator-light" id="ir-indicator-light"></div>
+                                <div class="ir-status-info">
+                                    <span class="ir-state-title" id="ir-state-text">LIBRE</span>
+                                    <span class="ir-state-subtitle" id="ir-sub-text">Haz óptico despejado</span>
+                                </div>
+                            </div>
+
+                            <div class="ir-metrics-grid">
+                                <div class="ir-metric-item">
+                                    <span class="ir-metric-label">Cruces / Detecciones:</span>
+                                    <span class="ir-metric-val font-mono text-cyan" id="ir-activations-count">0</span>
+                                </div>
+                                <div class="ir-metric-item">
+                                    <span class="ir-metric-label">Última detección:</span>
+                                    <span class="ir-metric-val font-mono" id="ir-last-time">--:--:--</span>
+                                </div>
+                            </div>
+
+                            <div class="ir-history-box">
+                                <div class="ir-history-title">Registro en Tiempo Real (RFID + IR):</div>
+                                <div class="ir-events-list" id="ir-events-list">
+                                    <div class="ir-event-empty">Esperando eventos...</div>
+                                </div>
+                            </div>
                         </div>
-                    </div>
 
-                    <div class="rfid-known-cards-box">
-                        <div class="ir-history-title">Credenciales Registradas en el Recinto:</div>
-                        <div class="rfid-cards-list" id="rfid-cards-list">
-                            <!-- Inyectado dinámicamente -->
+                        <!-- Tarjeta Principal: Conteo -->
+                        <div class="card metric-card hero-metric">
+                            <div class="metric-header">
+                                <h3>Personas Visibles</h3>
+                                <span class="badge-tag">YOLOv8 CPU</span>
+                            </div>
+                            <div class="metric-value-container">
+                                <span id="person-count" class="metric-number">--</span>
+                                <span class="metric-unit">en cuadro</span>
+                            </div>
+                            <p class="metric-footer-text">
+                                Conteo instantáneo de presencia en el encuadre actual. No mide flujo acumulativo.
+                            </p>
                         </div>
-                    </div>
-                </div>
 
-                <!-- Tarjeta de Monitoreo de Sensor Infrarrojo (Fase 1) -->
-                <div class="card ir-sensor-card" id="ir-card">
-                    <div class="card-header-row">
-                        <h3>Sensor Infrarrojo de Paso (GPIO 1)</h3>
-                        <span class="badge-tag">Fase 1</span>
-                    </div>
-                    
-                    <div class="ir-status-box is-free" id="ir-status-box">
-                        <div class="ir-indicator-light" id="ir-indicator-light"></div>
-                        <div class="ir-status-info">
-                            <span class="ir-state-title" id="ir-state-text">LIBRE</span>
-                            <span class="ir-state-subtitle" id="ir-sub-text">Haz óptico despejado</span>
+                        <!-- Tarjeta de Rendimiento e Inferencia -->
+                        <div class="card stats-card">
+                            <h3>Telemetría del Detector</h3>
+                            <div class="stat-row">
+                                <span class="stat-label">Tiempo de inferencia:</span>
+                                <span id="inference-time" class="stat-val font-mono">-- ms</span>
+                            </div>
+                            <div class="stat-row">
+                                <span class="stat-label">Umbral de confianza:</span>
+                                <span class="stat-val font-mono">{{ (confidence * 100)|int }}%</span>
+                            </div>
+                            <div class="stat-row">
+                                <span class="stat-label">Cuadros procesados:</span>
+                                <span id="frames-total" class="stat-val font-mono">0</span>
+                            </div>
+                            <div class="stat-row">
+                                <span class="stat-label">Estado del detector:</span>
+                                <span id="detector-status" class="stat-val text-success">Activo</span>
+                            </div>
                         </div>
-                    </div>
 
-                    <div class="ir-metrics-grid">
-                        <div class="ir-metric-item">
-                            <span class="ir-metric-label">Cruces / Detecciones:</span>
-                            <span class="ir-metric-val font-mono text-cyan" id="ir-activations-count">0</span>
+                        <!-- Tarjeta de Análisis con DeepSeek (Opcional) -->
+                        <div class="card deepseek-card">
+                            <div class="card-header-row">
+                                <h3>DeepSeek Vision (Nube)</h3>
+                                <span id="deepseek-badge" class="badge-pill">
+                                    {% if deepseek_configured %}Listo{% else %}Inactivo{% endif %}
+                                </span>
+                            </div>
+                            <p class="deepseek-description">
+                                Análisis secundario multimodelo ejecutado bajo demanda directa.
+                            </p>
+
+                            <div class="deepseek-controls">
+                                <button id="btn-deepseek-analyze" class="btn btn-primary" {% if not deepseek_configured %}disabled{% endif %}>
+                                    <span class="btn-icon">⚡</span>
+                                    <span id="btn-deepseek-text">Consultar DeepSeek</span>
+                                </button>
+                            </div>
+
+                            <div id="deepseek-result-box" class="deepseek-output hidden">
+                                <div class="deepseek-output-header">Respuesta DeepSeek:</div>
+                                <div id="deepseek-output-content" class="deepseek-output-body"></div>
+                                <div class="deepseek-privacy-notice">
+                                    ⚠️ Esta captura específica fue enviada a la API de DeepSeek bajo tu autorización explícita.
+                                </div>
+                            </div>
                         </div>
-                        <div class="ir-metric-item">
-                            <span class="ir-metric-label">Última detección:</span>
-                            <span class="ir-metric-val font-mono" id="ir-last-time">--:--:--</span>
-                        </div>
-                    </div>
-
-                    <div class="ir-history-box">
-                        <div class="ir-history-title">Registro en Tiempo Real (RFID + IR):</div>
-                        <div class="ir-events-list" id="ir-events-list">
-                            <div class="ir-event-empty">Esperando eventos...</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Tarjeta Principal: Conteo -->
-                <div class="card metric-card hero-metric">
-                    <div class="metric-header">
-                        <h3>Personas Visibles</h3>
-                        <span class="badge-tag">YOLOv8 CPU</span>
-                    </div>
-                    <div class="metric-value-container">
-                        <span id="person-count" class="metric-number">--</span>
-                        <span class="metric-unit">en cuadro</span>
-                    </div>
-                    <p class="metric-footer-text">
-                        Conteo instantáneo de presencia en el encuadre actual. No mide flujo acumulativo.
-                    </p>
-                </div>
-
-                <!-- Tarjeta de Rendimiento e Inferencia -->
-                <div class="card stats-card">
-                    <h3>Telemetría del Detector</h3>
-                    <div class="stat-row">
-                        <span class="stat-label">Tiempo de inferencia:</span>
-                        <span id="inference-time" class="stat-val font-mono">-- ms</span>
-                    </div>
-                    <div class="stat-row">
-                        <span class="stat-label">Umbral de confianza:</span>
-                        <span class="stat-val font-mono">{{ (confidence * 100)|int }}%</span>
-                    </div>
-                    <div class="stat-row">
-                        <span class="stat-label">Cuadros procesados:</span>
-                        <span id="frames-total" class="stat-val font-mono">0</span>
-                    </div>
-                    <div class="stat-row">
-                        <span class="stat-label">Estado del detector:</span>
-                        <span id="detector-status" class="stat-val text-success">Activo</span>
-                    </div>
-                </div>
-
-                <!-- Tarjeta de Análisis con DeepSeek (Opcional) -->
-                <div class="card deepseek-card">
-                    <div class="card-header-row">
-                        <h3>DeepSeek Vision (Nube)</h3>
-                        <span id="deepseek-badge" class="badge-pill">
-                            {% if deepseek_configured %}Listo{% else %}Inactivo{% endif %}
-                        </span>
-                    </div>
-                    <p class="deepseek-description">
-                        Análisis secundario multimodelo ejecutado bajo demanda directa.
-                    </p>
-
-                    <div class="deepseek-controls">
-                        <button id="btn-deepseek-analyze" class="btn btn-primary" {% if not deepseek_configured %}disabled{% endif %}>
-                            <span class="btn-icon">⚡</span>
-                            <span id="btn-deepseek-text">Consultar DeepSeek</span>
-                        </button>
-                    </div>
-
-                    <div id="deepseek-result-box" class="deepseek-output hidden">
-                        <div class="deepseek-output-header">Respuesta DeepSeek:</div>
-                        <div id="deepseek-output-content" class="deepseek-output-body"></div>
-                        <div class="deepseek-privacy-notice">
-                            ⚠️ Esta captura específica fue enviada a la API de DeepSeek bajo tu autorización explícita.
-                        </div>
-                    </div>
-                </div>
-            </aside>
-        </main>
-
-        <!-- PANEL DE DIAGNÓSTICO INTEGRAL DE HARDWARE Y SALUD DE PINES (FASE 3) -->
-        <section class="card hardware-panel" id="hardware-panel">
-            <div class="panel-header-row">
-                <div class="panel-title-group">
-                    <div class="badge-tag tag-fase3">Fase 3: Señalización & Telemetría</div>
-                    <h2>Diagnóstico Integral de Hardware & Pines (ESP32-S3 PCB V1695)</h2>
-                </div>
-                <div class="header-actions">
-                    <div id="hw-global-pill" class="status-pill status-connected">
-                        <span class="status-dot"></span>
-                        <span id="hw-global-text">HARDWARE 100% OPERATIVO</span>
-                    </div>
-                    <button id="btn-hw-refresh" class="btn btn-sm btn-outline" title="Refrescar diagnóstico de pines">
-                        <span>🔄 Verificar Pines</span>
-                    </button>
-                </div>
+                    </aside>
+                </main>
             </div>
 
-            <!-- Grilla de Subsistemas de Hardware -->
-            <div class="hw-subsystems-grid">
-                <!-- 1. Lector RFID RC522 -->
-                <div class="hw-subsystem-card" id="hw-card-rfid">
-                    <div class="hw-subsystem-header">
-                        <div class="hw-subsystem-icon rfid-icon">🪪</div>
-                        <div class="hw-subsystem-meta">
-                            <h4>Lector RFID RC522 (Bus SPI)</h4>
-                            <span class="hw-subsystem-sub" id="hw-rc522-chip">MFRC522 Clon funcional (0x82)</span>
+            <!-- ==============================================================================
+                 PESTAÑA 2: SALUD DEL CIRCUITO & DIAGNÓSTICO DE PINES
+                 ============================================================================== -->
+            <div id="tab-hardware" class="tab-pane" role="tabpanel" aria-labelledby="tab-btn-hardware">
+                <section class="card hardware-panel" id="hardware-panel">
+                    <!-- Cabecera del Panel de Hardware -->
+                    <div class="panel-header-row">
+                        <div class="panel-title-group">
+                            <div class="badge-tag tag-fase3">Fase 3: Señalización & Telemetría</div>
+                            <h2>Salud del Circuito & Diagnóstico de Pines (ESP32-S3 PCB V1695)</h2>
+                            <p class="panel-subtitle-text">Monitoreo en tiempo real del bus SPI, lógica de actuadores y continuidad eléctrica de pines</p>
                         </div>
-                        <span id="hw-rc522-badge" class="badge-status-ok">🟢 OK (0x82)</span>
-                    </div>
-                    <div class="hw-pin-list">
-                        <span class="pin-pill pin-ok">SCK: <b>GPIO 14</b></span>
-                        <span class="pin-pill pin-ok" id="pin-pill-mosi">MOSI: <b>GPIO 21</b></span>
-                        <span class="pin-pill pin-ok" id="pin-pill-miso">MISO: <b>GPIO 47</b></span>
-                        <span class="pin-pill pin-ok">SDA: <b>GPIO 2</b></span>
-                        <span class="pin-pill pin-ok">RST: <b>GPIO 48</b></span>
-                        <span class="pin-pill pin-pwr">VCC: <b>3.3V</b></span>
-                        <span class="pin-pill pin-pwr">GND: <b>Masa Común</b></span>
-                    </div>
-                    <div class="hw-guide-alert" id="hw-rc522-guide">
-                        ✅ <b>Estado Saludable:</b> Comunicación SPI estable en 0x82. Lector listo para auditar tarjetas.
-                    </div>
-                </div>
-
-                <!-- 2. Buzzer Activo 5V -->
-                <div class="hw-subsystem-card" id="hw-card-buzzer">
-                    <div class="hw-subsystem-header">
-                        <div class="hw-subsystem-icon buzzer-icon">🔊</div>
-                        <div class="hw-subsystem-meta">
-                            <h4>Buzzer Activo 5V (Señalización)</h4>
-                            <span class="hw-subsystem-sub">Driver Transistor NPN 2N2222A Low-Side</span>
-                        </div>
-                        <span class="badge-status-ok">🟢 OPERATIVO</span>
-                    </div>
-                    <div class="hw-pin-list">
-                        <span class="pin-pill pin-ok">Base: <b>GPIO 42 (1kΩ)</b></span>
-                        <span class="pin-pill pin-pwr">Colector: <b>Buzzer (-)</b></span>
-                        <span class="pin-pill pin-pwr">Emisor: <b>GND Común</b></span>
-                        <span class="pin-pill pin-pwr">VCC: <b>3.3V (MB102)</b></span>
-                    </div>
-                    <!-- Controles interactivos de prueba del Buzzer -->
-                    <div class="hw-buzzer-controls">
-                        <div class="hw-buzzer-btns">
-                            <button id="btn-test-buzzer-success" class="btn btn-sm btn-success" type="button">
-                                <span>🔊 Probar Bip Éxito (150ms)</span>
-                            </button>
-                            <button id="btn-test-buzzer-denied" class="btn btn-sm btn-danger" type="button">
-                                <span>🚨 Probar Alarma (3x80ms)</span>
+                        <div class="header-actions">
+                            <div id="hw-global-pill" class="status-pill status-connected">
+                                <span class="status-dot"></span>
+                                <span id="hw-global-text">HARDWARE 100% OPERATIVO</span>
+                            </div>
+                            <button id="btn-hw-refresh" class="btn btn-sm btn-outline" title="Refrescar diagnóstico de pines">
+                                <span>🔄 Verificar Pines</span>
                             </button>
                         </div>
-                        <div class="hw-buzzer-led-indicator">
-                            <span class="virtual-led-label">LED Prueba:</span>
-                            <div id="virtual-buzzer-led" class="virtual-led"></div>
-                            <span id="virtual-buzzer-text" class="virtual-led-text">Reposo</span>
-                        </div>
                     </div>
-                    <div class="hw-guide-alert hw-guide-info">
-                        ℹ️ <b>Diagnóstico:</b> Consumo seguro de 2.6 mA en GPIO 42. No uses jamás GPIO 47 para el buzzer (es el MISO del RFID).
-                    </div>
-                </div>
 
-                <!-- 3. Sensor Infrarrojo -->
-                <div class="hw-subsystem-card" id="hw-card-ir">
-                    <div class="hw-subsystem-header">
-                        <div class="hw-subsystem-icon ir-icon">👁️</div>
-                        <div class="hw-subsystem-meta">
-                            <h4>Sensor Infrarrojo de Paso</h4>
-                            <span class="hw-subsystem-sub">Entrada Digital con Pullup Interno</span>
+                    <!-- Fila de Indicadores Rápidos (KPIs Eléctricos) -->
+                    <div class="hw-kpis-grid">
+                        <div class="hw-kpi-card">
+                            <span class="hw-kpi-label">Periféricos Activos</span>
+                            <span class="hw-kpi-val text-success">4 / 4</span>
+                            <span class="hw-kpi-desc">CAM + IR + RC522 + BUZZER</span>
                         </div>
-                        <span id="hw-ir-badge" class="badge-status-ok">🟢 HAZ LIBRE</span>
+                        <div class="hw-kpi-card">
+                            <span class="hw-kpi-label">Rieles de Tensión</span>
+                            <span class="hw-kpi-val text-cyan">3.3V / GND</span>
+                            <span class="hw-kpi-desc">Masa común protoboard</span>
+                        </div>
+                        <div class="hw-kpi-card">
+                            <span class="hw-kpi-label">Bus SPI RC522</span>
+                            <span class="hw-kpi-val text-emerald">0x82 (OK)</span>
+                            <span class="hw-kpi-desc">Frecuencia bus: 4.0 MHz</span>
+                        </div>
+                        <div class="hw-kpi-card">
+                            <span class="hw-kpi-label">Driver Buzzer</span>
+                            <span class="hw-kpi-val text-amber">GPIO 42</span>
+                            <span class="hw-kpi-desc">NPN 2N2222A (Rb 1kΩ - 2.6mA)</span>
+                        </div>
                     </div>
-                    <div class="hw-pin-list">
-                        <span class="pin-pill pin-ok">Señal OUT: <b>GPIO 1</b></span>
-                        <span class="pin-pill pin-pwr">VCC: <b>3.3V</b></span>
-                        <span class="pin-pill pin-pwr">GND: <b>Masa Común</b></span>
-                    </div>
-                    <div class="hw-guide-alert hw-guide-info">
-                        💡 <b>Solución de Fallas:</b> Si no conmuta al pasar la mano o el LED del módulo está siempre encendido, gira suavemente el potenciómetro azul para calibrar a 5-10 cm.
-                    </div>
-                </div>
 
-                <!-- 4. Cámara OV5640 & Alimentación -->
-                <div class="hw-subsystem-card" id="hw-card-power">
-                    <div class="hw-subsystem-header">
-                        <div class="hw-subsystem-icon cam-icon">📷</div>
-                        <div class="hw-subsystem-meta">
-                            <h4>Cámara OV5640 & Rieles MB102</h4>
-                            <span class="hw-subsystem-sub">Bus DVP Paralelo + Riel 3.3V / Masa Común</span>
+                    <!-- Grilla de Subsistemas de Hardware -->
+                    <div class="hw-subsystems-grid">
+                        <!-- 1. Lector RFID RC522 -->
+                        <div class="hw-subsystem-card" id="hw-card-rfid">
+                            <div class="hw-subsystem-header">
+                                <div class="hw-subsystem-icon rfid-icon">🪪</div>
+                                <div class="hw-subsystem-meta">
+                                    <h4>Lector RFID RC522 (Bus SPI)</h4>
+                                    <span class="hw-subsystem-sub" id="hw-rc522-chip">MFRC522 Clon funcional (0x82)</span>
+                                </div>
+                                <span id="hw-rc522-badge" class="badge-status-ok">🟢 OK (0x82)</span>
+                            </div>
+                            <div class="hw-pin-list">
+                                <span class="pin-pill pin-ok">SCK: <b>GPIO 14</b></span>
+                                <span class="pin-pill pin-ok" id="pin-pill-mosi">MOSI: <b>GPIO 21</b></span>
+                                <span class="pin-pill pin-ok" id="pin-pill-miso">MISO: <b>GPIO 47</b></span>
+                                <span class="pin-pill pin-ok">SDA: <b>GPIO 2</b></span>
+                                <span class="pin-pill pin-ok">RST: <b>GPIO 48</b></span>
+                                <span class="pin-pill pin-pwr">VCC: <b>3.3V</b></span>
+                                <span class="pin-pill pin-pwr">GND: <b>Masa Común</b></span>
+                            </div>
+                            <div class="hw-guide-alert" id="hw-rc522-guide">
+                                ✅ <b>Estado Saludable:</b> Comunicación SPI estable en 0x82. Lector listo para auditar tarjetas.
+                            </div>
                         </div>
-                        <span id="hw-cam-badge" class="badge-status-ok">🟢 OK (VGA)</span>
+
+                        <!-- 2. Buzzer Activo 5V -->
+                        <div class="hw-subsystem-card" id="hw-card-buzzer">
+                            <div class="hw-subsystem-header">
+                                <div class="hw-subsystem-icon buzzer-icon">🔊</div>
+                                <div class="hw-subsystem-meta">
+                                    <h4>Buzzer Activo 5V (Señalización)</h4>
+                                    <span class="hw-subsystem-sub">Driver Transistor NPN 2N2222A Low-Side</span>
+                                </div>
+                                <span class="badge-status-ok">🟢 OPERATIVO</span>
+                            </div>
+                            <div class="hw-pin-list">
+                                <span class="pin-pill pin-ok">Base: <b>GPIO 42 (1kΩ)</b></span>
+                                <span class="pin-pill pin-pwr">Colector: <b>Buzzer (-)</b></span>
+                                <span class="pin-pill pin-pwr">Emisor: <b>GND Común</b></span>
+                                <span class="pin-pill pin-pwr">VCC: <b>3.3V (MB102)</b></span>
+                            </div>
+                            <!-- Controles interactivos de prueba del Buzzer -->
+                            <div class="hw-buzzer-controls">
+                                <div class="hw-buzzer-btns">
+                                    <button id="btn-test-buzzer-success" class="btn btn-sm btn-success" type="button">
+                                        <span>🔊 Probar Bip Éxito (150ms)</span>
+                                    </button>
+                                    <button id="btn-test-buzzer-denied" class="btn btn-sm btn-danger" type="button">
+                                        <span>🚨 Probar Alarma (3x80ms)</span>
+                                    </button>
+                                </div>
+                                <div class="hw-buzzer-led-indicator">
+                                    <span class="virtual-led-label">LED Prueba:</span>
+                                    <div id="virtual-buzzer-led" class="virtual-led"></div>
+                                    <span id="virtual-buzzer-text" class="virtual-led-text">Reposo</span>
+                                </div>
+                            </div>
+                            <div class="hw-guide-alert hw-guide-info">
+                                ℹ️ <b>Diagnóstico:</b> Consumo seguro de 2.6 mA en GPIO 42. No uses jamás GPIO 47 para el buzzer (es el MISO del RFID).
+                            </div>
+                        </div>
+
+                        <!-- 3. Sensor Infrarrojo -->
+                        <div class="hw-subsystem-card" id="hw-card-ir">
+                            <div class="hw-subsystem-header">
+                                <div class="hw-subsystem-icon ir-icon">👁️</div>
+                                <div class="hw-subsystem-meta">
+                                    <h4>Sensor Infrarrojo de Paso</h4>
+                                    <span class="hw-subsystem-sub">Entrada Digital con Pullup Interno</span>
+                                </div>
+                                <span id="hw-ir-badge" class="badge-status-ok">🟢 HAZ LIBRE</span>
+                            </div>
+                            <div class="hw-pin-list">
+                                <span class="pin-pill pin-ok">Señal OUT: <b>GPIO 1</b></span>
+                                <span class="pin-pill pin-pwr">VCC: <b>3.3V</b></span>
+                                <span class="pin-pill pin-pwr">GND: <b>Masa Común</b></span>
+                            </div>
+                            <div class="hw-guide-alert hw-guide-info">
+                                💡 <b>Solución de Fallas:</b> Si no conmuta al pasar la mano o el LED del módulo está siempre encendido, gira suavemente el potenciómetro azul para calibrar a 5-10 cm.
+                            </div>
+                        </div>
+
+                        <!-- 4. Cámara OV5640 & Alimentación -->
+                        <div class="hw-subsystem-card" id="hw-card-power">
+                            <div class="hw-subsystem-header">
+                                <div class="hw-subsystem-icon cam-icon">📷</div>
+                                <div class="hw-subsystem-meta">
+                                    <h4>Cámara OV5640 & Rieles MB102</h4>
+                                    <span class="hw-subsystem-sub">Bus DVP Paralelo + Riel 3.3V / Masa Común</span>
+                                </div>
+                                <span id="hw-cam-badge" class="badge-status-ok">🟢 OK (VGA)</span>
+                            </div>
+                            <div class="hw-pin-list">
+                                <span class="pin-pill pin-ok">D0-D7: <b>GPIO 11,9,8,10,12,18,17,16</b></span>
+                                <span class="pin-pill pin-ok">Clocks: <b>GPIO 15, 13</b></span>
+                                <span class="pin-pill pin-pwr">Riel: <b>3.3V (MB102)</b></span>
+                                <span class="pin-pill pin-pwr">GND: <b>Común ESP32-Proto</b></span>
+                            </div>
+                            <div class="hw-guide-alert hw-guide-info">
+                                ⚠️ <b>Regla de Oro:</b> El servomotor de Fase 4 requerirá Step-Down LM2596 (12V a 5V); nunca lo alimentes del MB102 para evitar sobrecalentamiento.
+                            </div>
+                        </div>
                     </div>
-                    <div class="hw-pin-list">
-                        <span class="pin-pill pin-ok">D0-D7: <b>GPIO 11,9,8,10,12,18,17,16</b></span>
-                        <span class="pin-pill pin-ok">Clocks: <b>GPIO 15, 13</b></span>
-                        <span class="pin-pill pin-pwr">Riel: <b>3.3V (MB102)</b></span>
-                        <span class="pin-pill pin-pwr">GND: <b>Común ESP32-Proto</b></span>
+
+                    <!-- Mapa Visual Interactivo de la Placa PCB V1695 -->
+                    <div class="hw-board-map-container">
+                        <div class="hw-board-map-header">
+                            <h4>Mapa Físico Interactivo de Pines — ESP32-S3 (PCB V1695)</h4>
+                            <span class="text-muted text-xs">Pasa el cursor sobre un pin para ver detalles de conexión y solución de fallas</span>
+                        </div>
+                        <div class="hw-board-diagram">
+                            <!-- Regleta Izquierda -->
+                            <div class="hw-board-header-column">
+                                <div class="header-col-title">Regleta Izquierda</div>
+                                <div class="pin-item" data-pin="3V3" title="Pin 3V3 - Alimentación positiva protegida">
+                                    <span class="pin-tag">3V3</span>
+                                    <span class="pin-led led-pwr"></span>
+                                    <span class="pin-desc">Alimentación 3.3V</span>
+                                </div>
+                                <div class="pin-item" data-pin="GND" title="Pin GND - Masa de la placa">
+                                    <span class="pin-tag">GND</span>
+                                    <span class="pin-led led-pwr"></span>
+                                    <span class="pin-desc">Masa</span>
+                                </div>
+                                <div class="pin-item pin-highlighted" data-pin="GPIO 1" title="GPIO 1 - Sensor Infrarrojo OUT">
+                                    <span class="pin-tag tag-active">GPIO 1</span>
+                                    <span class="pin-led led-ok" id="led-pin-1"></span>
+                                    <span class="pin-desc">Sensor IR (OUT)</span>
+                                </div>
+                                <div class="pin-item pin-highlighted" data-pin="GPIO 2" title="GPIO 2 - RFID RC522 SDA / SS (Chip Select)">
+                                    <span class="pin-tag tag-active">GPIO 2</span>
+                                    <span class="pin-led led-ok"></span>
+                                    <span class="pin-desc">RC522 SDA / SS [LED IO2]</span>
+                                </div>
+                                <div class="pin-item pin-highlighted" data-pin="GPIO 14" title="GPIO 14 - RFID RC522 SCK (Reloj SPI)">
+                                    <span class="pin-tag tag-active">GPIO 14</span>
+                                    <span class="pin-led led-ok"></span>
+                                    <span class="pin-desc">RC522 SCK (SPI Reloj)</span>
+                                </div>
+                            </div>
+
+                            <!-- Centro Placa: Chip y Cámara -->
+                            <div class="hw-board-center-core">
+                                <div class="board-camera-lens">
+                                    <div class="lens-glass"></div>
+                                    <span>CÁMARA OV5640 5MP</span>
+                                </div>
+                                <div class="board-soc-chip">
+                                    <div class="soc-label">ESP32-S3</div>
+                                    <div class="soc-sub">Xtensa LX7 240MHz</div>
+                                    <div class="soc-specs">16MB Flash | 8MB OPI PSRAM</div>
+                                </div>
+                                <div class="board-status-strip">
+                                    <span class="strip-item">LED IO2 (SPI SS)</span>
+                                    <span class="strip-item active">LED 48 (RST 3.3V)</span>
+                                </div>
+                                <div class="board-usb-ports">
+                                    <div class="usb-port active-port">USB-UART</div>
+                                    <div class="usb-port">USB-OTG</div>
+                                </div>
+                            </div>
+
+                            <!-- Regleta Derecha -->
+                            <div class="hw-board-header-column">
+                                <div class="header-col-title">Regleta Derecha</div>
+                                <div class="pin-item pin-highlighted" data-pin="GPIO 42" title="GPIO 42 - Base del Transistor 2N2222A con Rb=1kΩ para Buzzer">
+                                    <span class="pin-tag tag-active">GPIO 42</span>
+                                    <span class="pin-led led-ok" id="led-pin-42"></span>
+                                    <span class="pin-desc">BUZZER Activo (2N2222A)</span>
+                                </div>
+                                <div class="pin-item pin-highlighted" data-pin="GPIO 48" title="GPIO 48 - RFID RC522 RST (Reset del chip)">
+                                    <span class="pin-tag tag-active">GPIO 48</span>
+                                    <span class="pin-led led-ok"></span>
+                                    <span class="pin-desc">RC522 RST [LED 48]</span>
+                                </div>
+                                <div class="pin-item pin-highlighted" data-pin="GPIO 47" title="GPIO 47 - RFID RC522 MISO (Master In). ¡NUNCA puentear con 21!">
+                                    <span class="pin-tag tag-active" id="tag-pin-47">GPIO 47</span>
+                                    <span class="pin-led led-ok" id="led-pin-47"></span>
+                                    <span class="pin-desc">RC522 MISO (SPI In)</span>
+                                </div>
+                                <div class="pin-item pin-highlighted" data-pin="GPIO 21" title="GPIO 21 - RFID RC522 MOSI (Master Out). ¡NUNCA puentear con 47!">
+                                    <span class="pin-tag tag-active" id="tag-pin-21">GPIO 21</span>
+                                    <span class="pin-led led-ok" id="led-pin-21"></span>
+                                    <span class="pin-desc">RC522 MOSI (SPI Out)</span>
+                                </div>
+                                <div class="pin-item pin-highlighted" data-pin="GND" title="GND Común - Esquina inferior derecha (Pin 1 desde abajo)">
+                                    <span class="pin-tag tag-pwr">GND</span>
+                                    <span class="pin-led led-pwr"></span>
+                                    <span class="pin-desc">MASA COMÚN OBLIGATORIA</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="hw-guide-alert hw-guide-info">
-                        ⚠️ <b>Regla de Oro:</b> El servomotor de Fase 4 requerirá Step-Down LM2596 (12V a 5V); nunca lo alimentes del MB102 para evitar sobrecalentamiento.
+
+                    <!-- Fila Inferior: Matriz de Diagnóstico y Hoja Técnica de Solución de Fallas -->
+                    <div class="hw-docs-grid">
+                        <!-- Tarjeta de Solución Rápida de Fallas Frecuentes -->
+                        <div class="hw-docs-card">
+                            <div class="hw-docs-card-header">
+                                <h4>🩺 Matriz de Solución Rápida de Fallas Frecuentes</h4>
+                                <span class="badge-tag">Guía de Campo</span>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="hw-trouble-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Síntoma / Código</th>
+                                            <th>Diagnóstico Técnico</th>
+                                            <th>Solución Física Inmediata</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td><span class="code-badge code-ok">0x82</span></td>
+                                            <td>Lector SPI 100% Operativo</td>
+                                            <td>MFRC522 clon funcional. Todo en orden.</td>
+                                        </tr>
+                                        <tr>
+                                            <td><span class="code-badge code-warn">0xEE</span></td>
+                                            <td>Cortocircuito MOSI (21) y MISO (47)</td>
+                                            <td>Separar los pines 21 y 47 en la protoboard. No deben rozar.</td>
+                                        </tr>
+                                        <tr>
+                                            <td><span class="code-badge code-err">0xFF</span></td>
+                                            <td>Bus SPI sin respuesta o flotante</td>
+                                            <td>Revisar cable 3.3V de MB102 y pin RST en GPIO 48.</td>
+                                        </tr>
+                                        <tr>
+                                            <td><span class="code-badge code-warn">Bip Continuo</span></td>
+                                            <td>Masa flotante en transistor 2N2222A</td>
+                                            <td>Conectar cable de GND del ESP32 a la pista (-) de la protoboard.</td>
+                                        </tr>
+                                        <tr>
+                                            <td><span class="code-badge code-info">IR Siempre ON</span></td>
+                                            <td>Haz óptico saturado o descalibrado</td>
+                                            <td>Girar suavemente el potenciómetro azul hacia la izquierda.</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Tarjeta de Hoja Técnica de Acústica y Eléctrica -->
+                        <div class="hw-docs-card">
+                            <div class="hw-docs-card-header">
+                                <h4>⚡ Especificaciones Eléctricas & Patrones Acústicos</h4>
+                                <span class="badge-tag">Fase 3</span>
+                            </div>
+                            <div class="hw-specs-content">
+                                <div class="hw-spec-item">
+                                    <span class="hw-spec-title">🔊 Patrón Tarjeta Autorizada:</span>
+                                    <span class="hw-spec-desc">1 Bip sostenido de <b>150 ms</b> (UID: <code>6C8D1B06</code>)</span>
+                                </div>
+                                <div class="hw-spec-item">
+                                    <span class="hw-spec-title">🚨 Patrón Tarjeta Denegada:</span>
+                                    <span class="hw-spec-desc">3 Bips rápidos de <b>80 ms</b> (UID: <code>73230E06</code>)</span>
+                                </div>
+                                <div class="hw-spec-item">
+                                    <span class="hw-spec-title">🔌 Driver Transistor 2N2222A:</span>
+                                    <span class="hw-spec-desc">Base a GPIO 42 con $R_B = 1\text{ k}\Omega \rightarrow I_B = 2.6\text{ mA}$ (Consumo seguro)</span>
+                                </div>
+                                <div class="hw-spec-item">
+                                    <span class="hw-spec-title">⚙️ Próxima Fase (Fase 4 Servo):</span>
+                                    <span class="hw-spec-desc">Requiere Step-Down LM2596 (12V $\rightarrow$ 5.0V) con masa común. ¡No alimentar del MB102!</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                </div>
+                </section>
             </div>
-
-            <!-- Mapa Visual Interactivo de la Placa PCB V1695 -->
-            <div class="hw-board-map-container">
-                <div class="hw-board-map-header">
-                    <h4>Mapa Físico Interactivo de Pines — ESP32-S3 (PCB V1695)</h4>
-                    <span class="text-muted text-xs">Pasa el cursor sobre un pin para ver detalles de conexión y solución de fallas</span>
-                </div>
-                <div class="hw-board-diagram">
-                    <!-- Regleta Izquierda -->
-                    <div class="hw-board-header-column">
-                        <div class="header-col-title">Regleta Izquierda</div>
-                        <div class="pin-item" data-pin="3V3" title="Pin 3V3 - Alimentación positiva protegida">
-                            <span class="pin-tag">3V3</span>
-                            <span class="pin-led led-pwr"></span>
-                            <span class="pin-desc">Alimentación 3.3V</span>
-                        </div>
-                        <div class="pin-item" data-pin="GND" title="Pin GND - Masa de la placa">
-                            <span class="pin-tag">GND</span>
-                            <span class="pin-led led-pwr"></span>
-                            <span class="pin-desc">Masa</span>
-                        </div>
-                        <div class="pin-item pin-highlighted" data-pin="GPIO 1" title="GPIO 1 - Sensor Infrarrojo OUT">
-                            <span class="pin-tag tag-active">GPIO 1</span>
-                            <span class="pin-led led-ok" id="led-pin-1"></span>
-                            <span class="pin-desc">Sensor IR (OUT)</span>
-                        </div>
-                        <div class="pin-item pin-highlighted" data-pin="GPIO 2" title="GPIO 2 - RFID RC522 SDA / SS (Chip Select)">
-                            <span class="pin-tag tag-active">GPIO 2</span>
-                            <span class="pin-led led-ok"></span>
-                            <span class="pin-desc">RC522 SDA / SS [LED IO2]</span>
-                        </div>
-                        <div class="pin-item pin-highlighted" data-pin="GPIO 14" title="GPIO 14 - RFID RC522 SCK (Reloj SPI)">
-                            <span class="pin-tag tag-active">GPIO 14</span>
-                            <span class="pin-led led-ok"></span>
-                            <span class="pin-desc">RC522 SCK (SPI Reloj)</span>
-                        </div>
-                    </div>
-
-                    <!-- Centro Placa: Chip y Cámara -->
-                    <div class="hw-board-center-core">
-                        <div class="board-camera-lens">
-                            <div class="lens-glass"></div>
-                            <span>CÁMARA OV5640 5MP</span>
-                        </div>
-                        <div class="board-soc-chip">
-                            <div class="soc-label">ESP32-S3</div>
-                            <div class="soc-sub">Xtensa LX7 240MHz</div>
-                            <div class="soc-specs">16MB Flash | 8MB OPI PSRAM</div>
-                        </div>
-                        <div class="board-status-strip">
-                            <span class="strip-item">LED IO2 (SPI SS)</span>
-                            <span class="strip-item active">LED 48 (RST 3.3V)</span>
-                        </div>
-                        <div class="board-usb-ports">
-                            <div class="usb-port active-port">USB-UART</div>
-                            <div class="usb-port">USB-OTG</div>
-                        </div>
-                    </div>
-
-                    <!-- Regleta Derecha -->
-                    <div class="hw-board-header-column">
-                        <div class="header-col-title">Regleta Derecha</div>
-                        <div class="pin-item pin-highlighted" data-pin="GPIO 42" title="GPIO 42 - Base del Transistor 2N2222A con Rb=1kΩ para Buzzer">
-                            <span class="pin-tag tag-active">GPIO 42</span>
-                            <span class="pin-led led-ok" id="led-pin-42"></span>
-                            <span class="pin-desc">BUZZER Activo (2N2222A)</span>
-                        </div>
-                        <div class="pin-item pin-highlighted" data-pin="GPIO 48" title="GPIO 48 - RFID RC522 RST (Reset del chip)">
-                            <span class="pin-tag tag-active">GPIO 48</span>
-                            <span class="pin-led led-ok"></span>
-                            <span class="pin-desc">RC522 RST [LED 48]</span>
-                        </div>
-                        <div class="pin-item pin-highlighted" data-pin="GPIO 47" title="GPIO 47 - RFID RC522 MISO (Master In). ¡NUNCA puentear con 21!">
-                            <span class="pin-tag tag-active" id="tag-pin-47">GPIO 47</span>
-                            <span class="pin-led led-ok" id="led-pin-47"></span>
-                            <span class="pin-desc">RC522 MISO (SPI In)</span>
-                        </div>
-                        <div class="pin-item pin-highlighted" data-pin="GPIO 21" title="GPIO 21 - RFID RC522 MOSI (Master Out). ¡NUNCA puentear con 47!">
-                            <span class="pin-tag tag-active" id="tag-pin-21">GPIO 21</span>
-                            <span class="pin-led led-ok" id="led-pin-21"></span>
-                            <span class="pin-desc">RC522 MOSI (SPI Out)</span>
-                        </div>
-                        <div class="pin-item pin-highlighted" data-pin="GND" title="GND Común - Esquina inferior derecha (Pin 1 desde abajo)">
-                            <span class="pin-tag tag-pwr">GND</span>
-                            <span class="pin-led led-pwr"></span>
-                            <span class="pin-desc">MASA COMÚN OBLIGATORIA</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
+        </div>
 
         <!-- Pie de página y aviso legal -->
         <footer class="app-footer">
