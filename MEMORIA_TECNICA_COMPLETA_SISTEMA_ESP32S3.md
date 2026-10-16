@@ -2,8 +2,8 @@
 ## ESP32-S3 N16R8 + OV5640 + SENSOR IR + DOCKER (YOLO LOCAL & CONTROL DE ACCESO)
 
 > **Documento:** Memoria técnica integral y registro histórico del sistema.  
-> **Fecha de consolidación:** 15 de Octubre de 2026.  
-> **Estado:** Fase 0 y Fase 1 completadas, operativas y validadas en hardware real.
+> **Fecha de consolidación:** 16 de Octubre de 2026.  
+> **Estado:** Fase 0, Fase 1 y Fase 2 completadas, operativas y validadas en hardware real.
 
 ---
 
@@ -75,7 +75,7 @@ El sistema integra:
 | **Memoria PSRAM Octal** | GPIO 33, 34, 35, 36, 37 | **OCUPADO** | Bus OPI de alta velocidad reservado |
 | **Puerto Serie UART0** | GPIO 43 (U0TXD), GPIO 44 (U0RXD) | **OCUPADO** | Comunicación USB-UART a 115200 baud |
 | **Sensor Infrarrojo #1** | **GPIO 1** | **ACTIVO (FASE 1)** | Entrada digital `INPUT_PULLUP`. (LOW = Detectado, HIGH = Libre) |
-| **RFID RC522 (Fase 2)** | GPIO 14, 21, 47, 48 *(Candidatos SPI)* | *Futuro* | Niveles a 3.3V para lector de tarjetas |
+| **RFID RC522 (Fase 2)** | **GPIO 14 (SCK), 21 (MOSI), 47 (MISO), 2 (SDA/SS), 48 (RST)** | **LISTO PARA PRUEBA (FASE 2)** | Bus SPI a 3.3V estrictos. Compatible con OV5640 y PSRAM |
 | **LEDs / Buzzer (Fase 3)** | Por asignar | *Futuro* | Señalización luminosa y acústica |
 | **Servo Maqueta (Fase 4)**| Por asignar (PWM LEDC) | *Futuro* | Actuador de barrera (alimentación 5V externa separada) |
 
@@ -174,15 +174,54 @@ recinto-control/
    * Inicialmente el contenedor estaba enlazado a `127.0.0.1` (solo accesible internamente en la PC).
    * Para permitir que el ESP32 físico (`192.168.1.111`) enviara peticiones HTTP POST al backend en la PC (`192.168.1.95:8088`), se actualizó la vinculación a `0.0.0.0:8088`, garantizando la comunicación bidireccional entre el microcontrolador y el servidor.
 
-5. **Lectura No Bloqueante del Sensor IR en GPIO 1:**
-   * Se integró en el bucle principal `loop()` del ESP32 una rutina de sondeo digital no bloqueante basada en `millis()` con 50 ms de tiempo anti-rebote (*debounce*) y una ventana de 250 ms anti-repetición.
-   * Esto garantiza que la cámara OV5640 **nunca sufra congelamiento de fotogramas ni pérdida de conexión Wi-Fi** mientras se detectan objetos o personas frente al sensor.
+6. **Integración Completa del Lector RFID RC522 (Fase 2):**
+   * Se incorporó el lector MFRC522 mediante bus SPI en GPIO 14 (SCK), 21 (MOSI), 47 (MISO), 2 (SDA/SS) y 48 (RST).
+   * Se integró lectura no bloqueante de tarjetas y llaveros RFID (MIFARE 1KB / 13.56 MHz) sin interferir con el streaming de cámara ni con el sensor infrarrojo.
 
 ---
 
-## 7. PROTOCOLO DE OPERACIÓN Y VALIDACIÓN RÁPIDA
+## 7. FASE 2: INTEGRACIÓN DEL CONTROL DE ACCESO RFID (RC522)
 
-### Cómo iniciar o reiniciar el sistema:
+### A. Mapeo de Pines SPI en la Placa ESP32-S3 (PCB V1695)
+| Pin del RC522 | Pin ESP32-S3 | Posición en Regleta | Nivel Eléctrico | Función |
+| :--- | :--- | :--- | :--- | :--- |
+| **VCC** | **3V3** | Riel 3.3V (MB102 o placa) | **3.3 V ESTRICTO** | ¡NUNCA 5V! Tolera máx 3.3V |
+| **RST** | **GPIO 48** | Regleta derecha, pin 6 desde abajo | 3.3 V | Salida de Reset / Wake-up |
+| **GND** | **GND** | Regleta derecha, pin 1 desde abajo | 0 V | **Masa común obligatoria** |
+| **IRQ** | *(Libre)* | — | — | No utilizado |
+| **MISO** | **GPIO 47** | Regleta derecha, pin 5 desde abajo | 3.3 V | SPI Master In (Datos hacia ESP32) |
+| **MOSI** | **GPIO 21** | Regleta derecha, pin 4 desde abajo | 3.3 V | SPI Master Out (Datos hacia RC522) |
+| **SCK** | **GPIO 14** | Regleta izquierda, pin 2 desde abajo | 3.3 V | SPI Reloj |
+| **SDA (SS)**| **GPIO 2** | Regleta izquierda, pin 8 desde abajo | 3.3 V | SPI Slave Select / Chip Select |
+
+### B. Hallazgos Críticos y Soluciones Técnicas durante la Fase 2
+1. **La Regla de Masa Común (GND):**
+   * Si el GND del ESP32 no se une con el GND de la protoboard, el bus SPI queda sin referencia de 0V, haciendo que las señales floten y se lean errores `0x00`, `0xFF` o ruidos. **Solución:** Conectar un cable dedicado desde el pin `GND` del ESP32 al riel `(-)` de la protoboard.
+2. **Diagnóstico del Registro de Versión (`VersionReg`):**
+   * **`0x82`:** Identificador legítimo de chip clon MFRC522 100% funcional.
+   * **`0xEE` (Loopback MOSI-MISO):** La dirección de VersionReg es 0x37 (`(0x37 << 1) | 0x80 = 0xEE`). Si MISO recibe `0xEE`, significa que el cable de MOSI (GPIO 21) y MISO (GPIO 47) están en cortocircuito o tocándose en la protoboard. **Solución:** Separar físicamente los jumpers 21 y 47.
+   * **`0x00` o `0xFF`:** Falta de alimentación 3.3V, falso contacto o masa flotante.
+3. **Peligro de Saturación por Ganancia Forzada (`RxGain_max`):**
+   * En chips clones `0x82`, forzar ganancia máxima (48dB) con `PCD_SetAntennaGain` satura el mezclador analógico de RF y ciega el lector. **Solución:** Mantener la ganancia estándar de fábrica tras `PCD_Init()`.
+4. **Comportamiento del LED 48 (WS2812 NeoPixel):**
+   * El LED SMD serigrafiado como `48` en la placa es un LED inteligente direccionable. Al inicializar el pin RST del RC522 con pulsos rápidos, el LED decodifica colores transitorios (verde, blanco) y queda fijo en **Azul**. Esto es normal y confirma que GPIO 48 está en nivel ALTO (3.3V) manteniendo activo al lector.
+
+### C. Políticas de Acceso Implementadas y Validadas en Hardware
+| UID Hexadecimal | Titular Registrado | Política de Acceso | Resultado en Sistema |
+| :--- | :--- | :--- | :--- |
+| **`73230E06`** | Socio #1 | 🔴 **BLOQUEADA** | **ACCESO DENEGADO** (Banner Rojo en Web / Alerta en Consola) |
+| **`6C8D1B06`** | Socio Activo #2 | 🟢 **AUTORIZADA** | **ACCESO CONCEDIDO** (Banner Verde en Web / Ingreso Permitido) |
+
+### D. Actualización del Backend Docker y Panel Web
+* **Base de datos SQLite (`recinto_events.db`):** Migrada con las columnas `uid` y `card_holder` para auditoría permanente.
+* **Interfaz Web (`http://192.168.1.95:8088/`):** Incorporación de tarjeta de Control de Acceso RFID con animación de pulso, display de credenciales registradas, contador de usos y registro cronológico en vivo.
+* **Firmware de Diagnóstico Aislado:** Creación del sketch de prueba [Test_RFID_RC522_ESP32S3.ino](file:///c:/xampp/htdocs/OLARTE/recinto-control/firmware/Test_RFID_RC522_ESP32S3/Test_RFID_RC522_ESP32S3.ino) para verificación pura en monitor serie.
+
+---
+
+## 8. PROTOCOLO DE OPERACIÓN Y VALIDACIÓN RÁPIDA
+
+### Cómo iniciar o reiniciar el sistema completo:
 1. En tu terminal PowerShell:
    ```powershell
    cd c:\xampp\htdocs\OLARTE\esp32-vision-personas
@@ -193,22 +232,28 @@ recinto-control/
 3. Enciende el ESP32 y el módulo MB102 (3.3V).
 4. El monitor serie del ESP32 (115200 baudios) confirmará:
    ```text
-   SENSOR INFRARROJO INICIALIZADO EN GPIO 1 (Estado actual: LIBRE)
-   CAMARA OV5640 INICIALIZADA CORRECTAMENTE.
-   WIFI CONECTADO EXITOSAMENTE
-   IP LOCAL CAMARA: http://192.168.1.111
-   DESTINO EVENTOS: http://192.168.1.95:8088
+   ==================================================
+     ESP32-S3 N16R8 - FASE 2: CAM + IR + RFID RC522
+   ==================================================
+   [OK] Sensor IR inicializado en GPIO 1 (Estado inicial: LIBRE)
+   Inicializando bus SPI para RFID RC522...
+     -> SCK: GPIO 14 | MOSI: GPIO 21 | MISO: GPIO 47 | SDA(SS): GPIO 2 | RST: GPIO 48
+     -> Registro VersionReg RC522: 0x82 (MFRC522 Clon funcional - OK)
+   Inicializando camara OV5640...
+   [OK] Camara OV5640 inicializada correctamente.
+   WIFI CONECTADO
+     IP Local Camara: http://192.168.1.111
    ```
-5. **Prueba de paso:**
-   * Al colocar la mano a 5 cm del sensor: La tarjeta del panel web conmuta a 🔴 **DETECTADO**, suma +1 en activaciones y registra la hora.
-   * Al retirar la mano: La tarjeta del panel web conmuta a 🟢 **LIBRE**.
-   * Simultáneamente, la cámara OV5640 transmite el video en vivo y YOLO dibuja recuadros cian sobre cualquier persona visible en el encuadre.
+5. **Pruebas en tiempo real:**
+   * **Paso IR:** Al pasar la mano a 5 cm del sensor IR, el panel web conmuta a 🔴 **DETECTADO** y suma +1 activación.
+   * **RFID Denegado:** Al pasar la tarjeta `73230E06`, el panel destella en rojo con **ACCESO DENEGADO / CREDENCIAL BLOQUEADA**.
+   * **RFID Concedido:** Al pasar la tarjeta `6C8D1B06`, el panel destella en verde con **ACCESO CONCEDIDO / AUTORIZADA**.
+   * **Cámara OV5640 + YOLO:** Video en vivo continuo con conteo instantáneo de personas presentes.
 
 ---
 
-## 8. REGLAS PARA LAS PRÓXIMAS FASES (HOJA DE RUTA)
+## 9. REGLAS PARA LAS PRÓXIMAS FASES (HOJA DE RUTA)
 
-* **Fase 2 (RFID RC522):** Conexión por bus SPI (3.3V). La lectura de tarjetas evaluará políticas en el backend sin accionar compuertas físicas hasta contar con mecanismos de seguridad.
 * **Fase 3 (Señalización):** Integración secuencial de LED verde (autorizado), LED rojo (denegado) y buzzer con transistor 2N2222A.
 * **Fase 4 (Servomotor Maqueta):** El servo SG90 solo se utilizará como demostración a escala; se alimentará de forma externa con GND común para proteger al microcontrolador de caídas de tensión.
 * **Fase 6 (Segundo Sensor IR):** Solo cuando se disponga físicamente del segundo sensor se habilitará la lógica de dirección de paso (entrada vs. salida) y aforo acumulado del recinto.

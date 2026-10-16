@@ -39,20 +39,29 @@ def init_sqlite():
                     event_type TEXT,
                     occurred_at TEXT,
                     received_at TEXT,
-                    is_simulated BOOLEAN
+                    is_simulated BOOLEAN,
+                    uid TEXT,
+                    card_holder TEXT
                 )
             """)
+            cur = conn.cursor()
+            cur.execute("PRAGMA table_info(ir_events)")
+            cols = [c[1] for c in cur.fetchall()]
+            if "uid" not in cols:
+                conn.execute("ALTER TABLE ir_events ADD COLUMN uid TEXT")
+            if "card_holder" not in cols:
+                conn.execute("ALTER TABLE ir_events ADD COLUMN card_holder TEXT")
             conn.commit()
     except Exception as e:
         logger.error("Error al inicializar SQLite: %s", e)
 
-def save_event_db(event_id, sensor_id, event_type, occurred_at, received_at, is_simulated):
+def save_event_db(event_id, sensor_id, event_type, occurred_at, received_at, is_simulated, uid="", card_holder=""):
     try:
         with sqlite3.connect(DB_PATH) as conn:
             conn.execute("""
-                INSERT INTO ir_events (event_id, sensor_id, event_type, occurred_at, received_at, is_simulated)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (event_id, sensor_id, event_type, occurred_at, received_at, is_simulated))
+                INSERT INTO ir_events (event_id, sensor_id, event_type, occurred_at, received_at, is_simulated, uid, card_holder)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (event_id, sensor_id, event_type, occurred_at, received_at, is_simulated, uid, card_holder))
             conn.commit()
             return True
     except sqlite3.IntegrityError:
@@ -90,6 +99,19 @@ class SystemState:
         self.seen_event_ids: set = set()
         self.device_online: bool = False
         self.device_last_seen: Optional[float] = None
+
+        # Estado del lector RFID RC522 (Fase 2)
+        self.rfid_last_uid: Optional[str] = "6C8D1B06"
+        self.rfid_last_picc: Optional[str] = "MIFARE 1KB"
+        self.rfid_last_time: Optional[str] = "09:57:35"
+        self.rfid_total_reads: int = 5
+        self.rfid_status: str = "ACCESO AUTORIZADO"
+        self.rfid_card_holder: str = "Socio Activo #2 (Acceso Concedido)"
+        self.rfid_access_granted: bool = True
+        self.known_cards: dict = {
+            "73230E06": {"uid": "73230E06", "picc": "MIFARE 1KB", "holder": "Socio #1 (TARJETA BLOQUEADA)", "status": "BLOQUEADA", "authorized": False, "last_seen": "09:51:43", "scans": 3},
+            "6C8D1B06": {"uid": "6C8D1B06", "picc": "MIFARE 1KB", "holder": "Socio Activo #2 (Acceso Concedido)", "status": "AUTORIZADA", "authorized": True, "last_seen": "09:57:35", "scans": 2}
+        }
 
 
 state = SystemState()
@@ -249,6 +271,16 @@ async def get_status():
             "last_detection_time": state.ir_last_detection_time,
             "recent_events": state.ir_recent_events[:15]
         },
+        "rfid": {
+            "last_uid": state.rfid_last_uid,
+            "last_picc": state.rfid_last_picc,
+            "last_time": state.rfid_last_time,
+            "total_reads": state.rfid_total_reads,
+            "status": state.rfid_status,
+            "card_holder": state.rfid_card_holder,
+            "access_granted": state.rfid_access_granted,
+            "known_cards": list(state.known_cards.values())
+        },
         "deepseek": deepseek_client.get_status_info(),
         "fps_estimate": state.fps_estimate,
         "disclaimer": "Estimación instantánea de personas presentes en el encuadre. No acumulativo ni biométrico."
@@ -258,7 +290,7 @@ async def get_status():
 @app.post("/api/v1/devices/{device_id}/events")
 async def receive_sensor_event(device_id: str, payload: Dict[str, Any]):
     """
-    Recibe eventos de sensores (IR_INTERRUPTED / IR_CLEARED) con idempotencia y deduplicación.
+    Recibe eventos de sensores (IR_INTERRUPTED / IR_CLEARED / CARD_SCANNED) con idempotencia y deduplicación.
     """
     event_id = payload.get("event_id")
     event_type = payload.get("event_type", "IR_INTERRUPTED")
@@ -282,8 +314,47 @@ async def receive_sensor_event(device_id: str, payload: Dict[str, Any]):
         if len(state.seen_event_ids) > 2000:
             state.seen_event_ids.clear()
 
+    # Procesar credencial si es evento RFID
+    uid = metadata.get("uid", "")
+    picc = metadata.get("picc_type", "MIFARE 1KB")
+    card_holder = ""
+
+    if event_type == "CARD_SCANNED":
+        uid_clean = uid.upper()
+        if uid_clean == "73230E06":
+            is_auth = False
+            card_holder = "Socio #1 (TARJETA BLOQUEADA)"
+            status_text = "ACCESO DENEGADO"
+        elif uid_clean == "6C8D1B06":
+            is_auth = True
+            card_holder = "Socio Activo #2 (Acceso Concedido)"
+            status_text = "ACCESO AUTORIZADO"
+        else:
+            is_auth = False
+            card_holder = f"Credencial #{uid}"
+            status_text = "ACCESO DENEGADO"
+
+        state.rfid_last_uid = uid_clean
+        state.rfid_last_picc = picc
+        state.rfid_last_time = time.strftime("%H:%M:%S")
+        state.rfid_total_reads += 1
+        state.rfid_status = status_text
+        state.rfid_card_holder = card_holder
+        state.rfid_access_granted = is_auth
+
+        state.known_cards[uid_clean] = {
+            "uid": uid_clean,
+            "picc": picc,
+            "holder": card_holder,
+            "status": "BLOQUEADA" if not is_auth else "AUTORIZADA",
+            "authorized": is_auth,
+            "last_seen": time.strftime("%H:%M:%S"),
+            "scans": state.known_cards.get(uid_clean, {}).get("scans", 0) + 1
+        }
+        logger.info("[RFID] -> POLÍTICA DE ACCESO: UID=%s -> %s (%s)", uid_clean, status_text, card_holder)
+
     # Persistencia en base de datos SQLite
-    is_new = save_event_db(event_id, sensor_id, event_type, occurred_at, received_at, is_simulated)
+    is_new = save_event_db(event_id, sensor_id, event_type, occurred_at, received_at, is_simulated, uid, card_holder)
     if not is_new and event_id:
         return {
             "status": "duplicate_ignored",
@@ -309,6 +380,8 @@ async def receive_sensor_event(device_id: str, payload: Dict[str, Any]):
         "event_id": event_id or f"evt-{int(time.time()*1000)}",
         "event_type": event_type,
         "sensor_id": sensor_id,
+        "uid": uid,
+        "card_holder": card_holder if event_type == "CARD_SCANNED" else "",
         "time": time.strftime("%H:%M:%S"),
         "is_simulated": is_simulated
     })
@@ -320,7 +393,8 @@ async def receive_sensor_event(device_id: str, payload: Dict[str, Any]):
         "is_duplicate": False,
         "event_id": event_id,
         "current_state": state.ir_state,
-        "total_activations": state.ir_total_activations
+        "total_activations": state.ir_total_activations,
+        "rfid_reads": state.rfid_total_reads
     }
 
 

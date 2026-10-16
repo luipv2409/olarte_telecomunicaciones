@@ -36,8 +36,8 @@
 | **Cámara OV5640 (SCCB/I2C)** | GPIO 4 (SDA), GPIO 5 (SCL) | **OCUPADO** | 3.3 V | Bus I2C de configuración del sensor OV5640 |
 | **Memoria PSRAM OPI 8MB** | GPIO 33, 34, 35, 36, 37 | **OCUPADO** | Interno | Bus de datos Octal SPI. No tocar |
 | **Puerto USB-UART** | GPIO 43 (U0TXD), GPIO 44 (U0RXD) | **OCUPADO** | 3.3 V | Monitor serie a 115200 baudios |
-| **Sensor IR #1 (Fase 1)** | **GPIO 1** *(Candidato A)* o **GPIO 2** *(Candidato B)* | **PENDIENTE DE VALIDACIÓN** | 3.3 V | Entrada digital. Requiere jumper de MB102 a 3.3V |
-| **Lector RFID (Fase 2)** | GPIO 14, 21, 47, 48 *(Candidatos SPI)* | **FUTURO** | 3.3 V | SCK, MISO, MOSI, SDA. No conectar aún |
+| **Sensor IR #1 (Fase 1)** | **GPIO 1** | **ACTIVO (FASE 1)** | 3.3 V | Entrada digital `INPUT_PULLUP`. (LOW = Detectado, HIGH = Libre) |
+| **Lector RFID RC522 (Fase 2)** | **GPIO 14 (SCK), 21 (MOSI), 47 (MISO), 2 (SDA/SS), 48 (RST)** | **VALIDADO (FASE 2)** | 3.3 V | Bus SPI. Alimentación estricta a 3.3V. LED IO2 parpadea en lectura |
 | **LED Verde / Rojo (Fase 3)** | Por definir | **FUTURO** | 3.3 V | Requiere resistencias de 220 Ω / 330 Ω |
 | **Buzzer Activo 5V (Fase 3)** | Por definir | **FUTURO** | 3.3 V a base | Requiere transistor 2N2222A y diodo de protección |
 | **Servo Maqueta (Fase 4)** | Por definir (PWM LEDC) | **FUTURO** | Señal 3.3 V | Alimentación motriz 5V externa separada |

@@ -58,10 +58,57 @@
 
             <!-- Columna Derecha: Métricas y Controles -->
             <aside class="metrics-panel">
+                <!-- Tarjeta de Control de Acceso RFID (Fase 2) -->
+                <div class="card rfid-sensor-card" id="rfid-card">
+                    <div class="card-header-row">
+                        <h3>Acceso RFID (RC522)</h3>
+                        <span class="badge-tag tag-fase2">Fase 2</span>
+                    </div>
+                    
+                    <div class="rfid-status-box is-idle" id="rfid-status-box">
+                        <div class="rfid-icon-circle" id="rfid-icon-circle">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="2" y="5" width="20" height="14" rx="2"></rect>
+                                <line x1="2" y1="10" x2="22" y2="10"></line>
+                            </svg>
+                        </div>
+                        <div class="rfid-status-info">
+                            <span class="rfid-state-title" id="rfid-status-text">ESPERANDO TARJETA</span>
+                            <span class="rfid-state-subtitle" id="rfid-sub-text">Acerca tu tarjeta o llavero al lector</span>
+                        </div>
+                    </div>
+
+                    <div class="rfid-metrics-grid">
+                        <div class="rfid-metric-item">
+                            <span class="rfid-metric-label">Último UID Leído:</span>
+                            <span class="rfid-metric-val font-mono text-cyan" id="rfid-last-uid">--</span>
+                        </div>
+                        <div class="rfid-metric-item">
+                            <span class="rfid-metric-label">Titular / Estado:</span>
+                            <span class="rfid-metric-val font-mono text-emerald" id="rfid-card-holder">Esperando lectura</span>
+                        </div>
+                        <div class="rfid-metric-item">
+                            <span class="rfid-metric-label">Accesos Registrados:</span>
+                            <span class="rfid-metric-val font-mono text-success" id="rfid-reads-count">0</span>
+                        </div>
+                        <div class="rfid-metric-item">
+                            <span class="rfid-metric-label">Hora de Registro:</span>
+                            <span class="rfid-metric-val font-mono" id="rfid-last-time">--:--:--</span>
+                        </div>
+                    </div>
+
+                    <div class="rfid-known-cards-box">
+                        <div class="ir-history-title">Credenciales Registradas en el Recinto:</div>
+                        <div class="rfid-cards-list" id="rfid-cards-list">
+                            <!-- Inyectado dinámicamente -->
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Tarjeta de Monitoreo de Sensor Infrarrojo (Fase 1) -->
                 <div class="card ir-sensor-card" id="ir-card">
                     <div class="card-header-row">
-                        <h3>Sensor Infrarrojo (GPIO 1)</h3>
+                        <h3>Sensor Infrarrojo de Paso (GPIO 1)</h3>
                         <span class="badge-tag">Fase 1</span>
                     </div>
                     
@@ -75,7 +122,7 @@
 
                     <div class="ir-metrics-grid">
                         <div class="ir-metric-item">
-                            <span class="ir-metric-label">Activaciones:</span>
+                            <span class="ir-metric-label">Cruces / Detecciones:</span>
                             <span class="ir-metric-val font-mono text-cyan" id="ir-activations-count">0</span>
                         </div>
                         <div class="ir-metric-item">
@@ -85,9 +132,9 @@
                     </div>
 
                     <div class="ir-history-box">
-                        <div class="ir-history-title">Registro de Eventos IR:</div>
+                        <div class="ir-history-title">Registro en Tiempo Real (RFID + IR):</div>
                         <div class="ir-events-list" id="ir-events-list">
-                            <div class="ir-event-empty">Esperando interrupciones...</div>
+                            <div class="ir-event-empty">Esperando eventos...</div>
                         </div>
                     </div>
                 </div>

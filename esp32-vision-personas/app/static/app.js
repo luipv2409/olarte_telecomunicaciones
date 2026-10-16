@@ -27,6 +27,16 @@ document.addEventListener("DOMContentLoaded", () => {
     const irLastTime = document.getElementById("ir-last-time");
     const irEventsList = document.getElementById("ir-events-list");
 
+    // RFID elements (Fase 2)
+    const rfidStatusBox = document.getElementById("rfid-status-box");
+    const rfidStatusText = document.getElementById("rfid-status-text");
+    const rfidSubText = document.getElementById("rfid-sub-text");
+    const rfidLastUid = document.getElementById("rfid-last-uid");
+    const rfidCardHolder = document.getElementById("rfid-card-holder");
+    const rfidReadsCount = document.getElementById("rfid-reads-count");
+    const rfidLastTime = document.getElementById("rfid-last-time");
+    const rfidCardsList = document.getElementById("rfid-cards-list");
+
     let isFetching = false;
     let pollInterval = 1000; // ms para respuesta ágil
 
@@ -51,13 +61,50 @@ document.addEventListener("DOMContentLoaded", () => {
                         : "Desconectado";
                 }
 
+                // Estado del Lector RFID (Fase 2)
+                if (data.rfid && rfidStatusBox) {
+                    const rfid = data.rfid;
+                    if (rfid.last_uid && rfid.last_uid !== "--") {
+                        const isAuth = rfid.access_granted;
+                        rfidStatusBox.className = isAuth ? "rfid-status-box is-authorized" : "rfid-status-box is-denied";
+                        rfidStatusText.textContent = rfid.status || (isAuth ? "ACCESO AUTORIZADO" : "ACCESO DENEGADO");
+                        rfidSubText.textContent = isAuth 
+                            ? `Tarjeta UID ${rfid.last_uid} - Ingreso al Recinto Concedido` 
+                            : `Tarjeta UID ${rfid.last_uid} - CREDENCIAL BLOQUEADA`;
+                        if (rfidLastUid) rfidLastUid.textContent = rfid.last_uid;
+                        if (rfidCardHolder) {
+                            rfidCardHolder.textContent = rfid.card_holder || (isAuth ? "Autorizado" : "Bloqueado");
+                            rfidCardHolder.className = isAuth ? "rfid-metric-val font-mono text-emerald" : "rfid-metric-val font-mono text-error";
+                        }
+                        if (rfidReadsCount) rfidReadsCount.textContent = rfid.total_reads || 0;
+                        if (rfidLastTime) rfidLastTime.textContent = rfid.last_time || "--:--:--";
+                    }
+
+                    // Renderizar lista de credenciales registradas
+                    if (rfidCardsList && rfid.known_cards && rfid.known_cards.length > 0) {
+                        rfidCardsList.innerHTML = rfid.known_cards.map(c => {
+                            const badge = c.status === "BLOQUEADA" 
+                                ? `<span class="badge-blocked">BLOQUEADA</span>` 
+                                : `<span class="badge-authorized">AUTORIZADA</span>`;
+                            return `
+                                <div class="rfid-card-item">
+                                    <span class="badge-rfid font-mono">🪪 ${c.uid}</span>
+                                    <span class="rfid-card-name">${c.holder}</span>
+                                    ${badge}
+                                    <span class="font-mono text-muted text-xs">${c.scans} usos</span>
+                                </div>
+                            `;
+                        }).join("");
+                    }
+                }
+
                 // Estado del Sensor Infrarrojo (Fase 1)
                 if (data.ir_sensor && irStatusBox) {
                     const ir = data.ir_sensor;
                     if (ir.is_detected) {
                         irStatusBox.className = "ir-status-box is-detected";
                         irStateText.textContent = "DETECTADO";
-                        irSubText.textContent = "¡Objeto interrumpiendo el haz!";
+                        irSubText.textContent = "¡Paso detectado por haz óptico!";
                     } else {
                         irStatusBox.className = "ir-status-box is-free";
                         irStateText.textContent = "LIBRE";
@@ -68,9 +115,18 @@ document.addEventListener("DOMContentLoaded", () => {
                     if (irLastTime) irLastTime.textContent = ir.last_detection_time || "--:--:--";
 
                     if (irEventsList && ir.recent_events && ir.recent_events.length > 0) {
-                        irEventsList.innerHTML = ir.recent_events.slice(0, 8).map(ev => {
+                        irEventsList.innerHTML = ir.recent_events.slice(0, 10).map(ev => {
+                            if (ev.event_type === "CARD_SCANNED") {
+                                const uidLabel = ev.uid ? `UID: ${ev.uid}` : "TARJETA";
+                                return `
+                                    <div class="ir-event-row" style="background: rgba(14, 165, 233, 0.1); border-left: 2px solid #38bdf8;">
+                                        <span class="font-mono text-muted">${ev.time}</span>
+                                        <span class="badge-rfid">🪪 ${uidLabel} [ACCESO]</span>
+                                    </div>
+                                `;
+                            }
                             const badgeClass = ev.event_type === "IR_INTERRUPTED" ? "badge-interrupted" : "badge-cleared";
-                            const badgeText = ev.event_type === "IR_INTERRUPTED" ? "DETECTADO" : "LIBRE";
+                            const badgeText = ev.event_type === "IR_INTERRUPTED" ? "IR: PASO DETECTADO" : "IR: HAZ LIBRE";
                             const simLabel = ev.is_simulated ? " [SIM]" : "";
                             return `
                                 <div class="ir-event-row">
