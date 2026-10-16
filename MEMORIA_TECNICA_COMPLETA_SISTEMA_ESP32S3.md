@@ -198,13 +198,22 @@ recinto-control/
 ### B. Hallazgos Críticos y Soluciones Técnicas durante la Fase 2
 1. **La Regla de Masa Común (GND):**
    * Si el GND del ESP32 no se une con el GND de la protoboard, el bus SPI queda sin referencia de 0V, haciendo que las señales floten y se lean errores `0x00`, `0xFF` o ruidos. **Solución:** Conectar un cable dedicado desde el pin `GND` del ESP32 al riel `(-)` de la protoboard.
-2. **Diagnóstico del Registro de Versión (`VersionReg`):**
+2. **Diagnóstico Dinámico del Registro de Versión (`VersionReg`):**
    * **`0x82`:** Identificador legítimo de chip clon MFRC522 100% funcional.
-   * **`0xEE` (Loopback MOSI-MISO):** La dirección de VersionReg es 0x37 (`(0x37 << 1) | 0x80 = 0xEE`). Si MISO recibe `0xEE`, significa que el cable de MOSI (GPIO 21) y MISO (GPIO 47) están en cortocircuito o tocándose en la protoboard. **Solución:** Separar físicamente los jumpers 21 y 47.
-   * **`0x00` o `0xFF`:** Falta de alimentación 3.3V, falso contacto o masa flotante.
-3. **Peligro de Saturación por Ganancia Forzada (`RxGain_max`):**
+   * **`0xEE` (Loopback MOSI-MISO por Cortocircuito Físico):** La dirección de VersionReg es 0x37 (`(0x37 << 1) | 0x80 = 0xEE`). Si MISO recibe `0xEE`, significa que el comando transmitido por MOSI (GPIO 21) regresa de inmediato por MISO (GPIO 47) porque los dos pines contiguos se están tocando físicamente en la regleta o en la protoboard. **Solución:** Separar físicamente los pines/jumpers 21 y 47.
+   * **`0x7F` / `0x21` / `0x0E`:** Ruido transitorio o línea MISO flotando debido a falso contacto o jumper flojo.
+   * **`0x00` o `0xFF`:** Falta de alimentación 3.3V, módulo MB102 apagado o masa (GND) desconectada.
+3. **Prueba de Laboratorio y Validación de 14 Lecturas Consecutivas (16 de Octubre de 2026):**
+   * Se comprobó en tiempo real cómo el bucle de autodiagnóstico no bloqueante identificó en vivo el cortocircuito transitorio `0xEE` entre los pines 21 y 47 al conectar el buzzer. Tras separar los cables, el bus se estabilizó en `0x82` permanente.
+   * Se ejecutaron con éxito rotundo **14 lecturas consecutivas de tarjetas RFID** con respuesta acústica inmediata y diferenciada en el buzzer:
+     - `6C8D1B06`: 🟢 **ACCESO CONCEDIDO** (Socio Activo #2) $\rightarrow$ 1 bip largo (150 ms).
+     - `73230E06`: 🔴 **ACCESO DENEGADO** (Socio #1) $\rightarrow$ 3 bips rápidos de alarma (80 ms).
+4. **Innovación Arquitectónica: Telemetría de Salud de Hardware hacia Docker:**
+   * **Objetivo:** No depender del Monitor Serie de Arduino IDE en producción para saber si un cable se aflojó.
+   * **Implementación:** El ESP32 incluirá el estado en tiempo real del bus SPI (`spi_status: "OK"` / `"SHORT_MOSI_MISO_0xEE"` / `"DISCONNECTED"`) dentro del paquete JSON de Heartbeat enviado periódicamente a Docker (`POST /api/v1/devices/{device_id}/events` o telemetría). Así, el panel web alertará al operador exactamente qué cable o pin requiere atención.
+5. **Peligro de Saturación por Ganancia Forzada (`RxGain_max`):**
    * En chips clones `0x82`, forzar ganancia máxima (48dB) con `PCD_SetAntennaGain` satura el mezclador analógico de RF y ciega el lector. **Solución:** Mantener la ganancia estándar de fábrica tras `PCD_Init()`.
-4. **Comportamiento del LED 48 (WS2812 NeoPixel):**
+6. **Comportamiento del LED 48 (WS2812 NeoPixel):**
    * El LED SMD serigrafiado como `48` en la placa es un LED inteligente direccionable. Al inicializar el pin RST del RC522 con pulsos rápidos, el LED decodifica colores transitorios (verde, blanco) y queda fijo en **Azul**. Esto es normal y confirma que GPIO 48 está en nivel ALTO (3.3V) manteniendo activo al lector.
 
 ### C. Políticas de Acceso Implementadas y Validadas en Hardware

@@ -8,13 +8,13 @@ Este documento registra el progreso real y auditable de cada fase del proyecto d
 
 | Fase | Alcance Técnico | Estado del Software | Estado de Hardware | Criterio de Aprobación |
 |---|---|---|---|---|
-| **Fase 0** | Entorno Docker, PostgreSQL interno y API v1 | **LISTO PARA PRUEBA** | N/A | Contenedores se levantan manualmente en puerto libre sin tocar servicios ajenos |
-| **Fase 1** | MVP: Monitoreo de 1 sensor IR + Debounce + Idempotencia | **LISTO PARA PRUEBA** | **PENDIENTE DE VALIDACIÓN FÍSICA** | Evento IR genera un registro único en DB sin duplicados ni bloqueos |
-| **Fase 2** | Lector RFID RC522: Autorización lógica | **PENDIENTE** | No conectado | Lectura de tarjeta evaluada contra políticas de acceso sin accionar compuerta |
-| **Fase 3** | Señalización: LED verde, LED rojo y Buzzer | **PENDIENTE** | No conectado | Patrones acústicos/luminosos temporizados sin bloqueos |
-| **Fase 4** | Servomotor SG90/MG90S para maqueta | **PENDIENTE** | No conectado | Apertura/cierre controlado con alimentación externa regulada |
-| **Fase 5** | Integración de Cámara OV5640 y Conteo Visual | **OPERATIVO EN 8088** | Validado en microservicio | Personas visibles en encuadre reflejadas en panel de acceso |
-| **Fase 6** | Segundo Sensor IR (Cruces y Dirección) | **BLOQUEADA POR HW** | **Hardware no disponible** | Secuencia A→B / B→A para determinar entrada/salida confirmada |
+| **Fase 0** | Entorno Docker, PostgreSQL interno y API v1 | **OPERATIVO EN 8088** | N/A | Contenedores levantados en puerto aislado 8088 |
+| **Fase 1** | MVP: Monitoreo de 1 sensor IR + Debounce + Idempotencia | **VALIDADO Y OPERATIVO** | **VALIDADO EN HARDWARE** | Evento IR genera registro único en DB sin duplicados ni bloqueos |
+| **Fase 2** | Lector RFID RC522: Autorización lógica y auditoría | **VALIDADO Y OPERATIVO** | **VALIDADO EN HARDWARE** | Tarjetas `73230E06` y `6C8D1B06` evaluadas contra políticas de acceso |
+| **Fase 3** | Señalización: Buzzer activo (2N2222A en GPIO 42) + LEDs | **OPERATIVO (BUZZER)** | **VALIDADO EN HARDWARE (BUZZER)** | Bip de arranque, éxito (150ms) y denegado (3x80ms) validados |
+| **Fase 4** | Servomotor SG90/MG90S para maqueta | **EN PREPARACIÓN** | Pendiente (Step-Down LM2596) | Apertura/cierre controlado con alimentación externa regulada a 5V |
+| **Fase 5** | Integración de Cámara OV5640 y Conteo Visual YOLO | **OPERATIVO EN 8088** | **VALIDADO EN HARDWARE** | Personas visibles en encuadre reflejadas en panel de acceso |
+| **Fase 6** | Segundo Sensor IR (Cruces y Dirección) | **BLOQUEADA POR HW** | Hardware no disponible | Secuencia A→B / B→A para determinar entrada/salida confirmada |
 | **Fase 7** | Endurecimiento, roles, backups y TLS | **PENDIENTE** | N/A | Pruebas de estrés, caída de red y retención de auditoría |
 
 ---
