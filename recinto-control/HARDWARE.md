@@ -1,6 +1,7 @@
 # HARDWARE.md — Mapa de Conexiones, Alimentación y Seguridad Eléctrica
 
-> **ESTADO GENERAL:** Fase 0, Fase 1 (IR + Cámara), Fase 2 (RFID RC522) y Fase 3 (Buzzer con Transistor 2N2222A): **VALIDADOS EN HARDWARE FÍSICO**. Próximos pasos: LEDs y Servomotor (Fase 4).
+> **ESTADO GENERAL:** Fase 0, Fase 1 (IR + Cámara), Fase 2 (RFID RC522) y Fase 3 (Buzzer con Transistor 2N2222A): **VALIDADOS EN HARDWARE FÍSICO (100% OPERATIVO)**.  
+> **PRÓXIMA ETAPA (FASE 4):** Servomotor de Barrera (5.0V externo con Step-Down LM2596) + Fusión de Sensores (RFID + IR + Cámara a ~5 FPS e inferencia YOLO en Docker).
 
 ---
 

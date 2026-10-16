@@ -338,15 +338,63 @@ recinto-control/
 
 ## 10. REGLAS PARA LAS PRÓXIMAS FASES (HOJA DE RUTA Y ACTUADORES)
 
-* **Fase 3 (Finalización de Señalización):**
+* **Fase 3 (Finalización de Señalización Visual Opcional):**
   * Conexión de **LED Verde (GPIO 19)** con resistencia de $220\text{ }\Omega$ para indicador visual de acceso concedido.
   * Conexión de **LED Rojo (GPIO 20)** con resistencia de $220\text{ }\Omega$ para indicador visual de acceso denegado.
-* **Fase 4 (Servomotor de Barrera - Arquitectura de Potencia):**
-  * **Problema del MB102:** El regulador lineal AMS1117-5.0 del módulo MB102 se sobrecalentaría críticamente si intenta bajar de 12V a 5V los 600-800 mA que consume un servomotor en movimiento ($P = 7\text{ V} \times 0.6\text{ A} \approx 4.2\text{ W}$, lo que causaría corte térmico y reinicio del ESP32).
-  * **Solución de Potencia:** Se utilizará la fuente externa de pared **12V 2A** conectada a un convertidor conmutado **Step-Down LM2596** calibrado con multímetro exactamente a **$5.0\text{ V}$**.
-  * **Regla de Conexión del Servo:**
-    - Cable Rojo (VCC) del Servo -> Salida +5V del LM2596.
-    - Cable Marrón/Negro (GND) del Servo -> Salida GND del LM2596 e interconectado a la masa común (GND) de todo el sistema.
-    - Cable Naranja/Amarillo (PWM) del Servo -> Pin GPIO designado del ESP32-S3 (señal de 3.3V compatible con entradas lógicas del servomotor).
-* **Fase 6 (Segundo Sensor IR):**
-  * Se reservará un GPIO adicional para implementar la discriminación direccional de paso (Entrada vs. Salida) y el balance acumulativo de aforo.
+
+---
+
+### 🚀 FASE 4: INTEGRACIÓN DEL SERVOMOTOR DE ACCESO + FUSIÓN DE SENSORES Y AUDITORÍA VISUAL (IA EN SERVIDOR)
+
+> **Fecha de Inicio Planificada:** Próxima sesión (Mañana).  
+> **Objetivo:** Convertir el sistema de monitoreo en un sistema autónomo de control físico de acceso con barrera electromecánica, validación biométrica/visual forense y almacenamiento estructurado de auditoría.
+
+#### A. Lógica de Decisión y Control Físico del Servomotor (Apertura vs. Bloqueo)
+1. **Acceso Autorizado (Tarjeta UID `6C8D1B06` - Titular: Ludwig):**
+   * **Señal Acústica:** El Buzzer emite **1 bip sostenido de bienvenida (150 ms)**.
+   * **Actuación del Servo:** El servomotor se desplaza de su posición de reposo de **$0^\circ$ (Puerta Cerrada/Bloqueada)** a **$90^\circ$ (Puerta Abierta)**.
+   * **Temporización Inteligente:** Permanece abierta durante un lapso de 3 a 5 segundos **O** se cierra de inmediato una vez que el **Sensor Infrarrojo de Paso (GPIO 1)** detecte la interrupción y posterior liberación del haz óptico (confirmación de cruce físico).
+   * **Cierre Seguro:** El servomotor retorna a **$0^\circ$**, asegurando de nuevo el recinto.
+2. **Acceso Denegado / No Autorizado (Tarjeta UID `73230E06` o Credenciales Desconocidas):**
+   * **Actuación del Servo:** El servomotor **PERMANECE INMÓVIL en $0^\circ$** (Puerta bloqueada y enclavada). Cero movimiento.
+   * **Señal Acústica:** El Buzzer emite la **alarma acústica de 3 bips rápidos de advertencia (80 ms cada uno)**.
+   * **Auditoría en Dashboard:** El panel web marca el intento en rojo y registra el evento de seguridad en la base de datos.
+
+#### B. Fusión de Sensores (Sensor Fusion) & Auditoría Visual por IA en Servidor
+1. **Principio de Cero Sobrecarga en el ESP32-S3:**
+   * El ESP32-S3 **NO ejecuta la red neuronal YOLOv8 ni almacena imágenes pesadas en su memoria**. Hacerlo saturaría la CPU, agotaría la PSRAM y provocaría caídas de conexión o pérdida de lecturas RFID/IR.
+   * El ESP32-S3 se limita a capturar el fotograma JPEG en su sensor OV5640 y transmitirlo rápidamente por red local (Wi-Fi) al servidor central.
+2. **Captura Disparada por Evento (Edge-Triggered Ingestion):**
+   * Cuando se produce un evento de acceso (lectura RFID o paso por el haz IR), el sistema toma una ráfaga de **~5 fotogramas por segundo (VGA 640x480)** durante ese instante crucial.
+   * Las capturas son enviadas al microservicio Docker (FastAPI en PC).
+3. **Inferencia YOLOv8 en el Servidor Docker:**
+   * El servidor en la PC procesa la imagen con YOLOv8 en milisegundos utilizando la CPU/GPU de la computadora.
+   * **Verificación de Presencia Humana:** Si YOLO detecta `person >= 1`, valida formalmente que una persona real está cruzando.
+   * **Eliminación de Falsos Positivos del IR:** Si el haz infrarrojo fue cortado por un objeto inerte (caja, escoba, carrito, etc.), el sistema registra la interrupción del haz pero **descarta el conteo de aforo humano**.
+   * **Control de Intrusión / Tailgating:** Si se autorizó una sola tarjeta pero la cámara detecta a 2 personas cruzando juntas, el sistema emite una alerta de aforo excesivo.
+4. **Persistencia Forense en Base de Datos SQLite (`recinto_events.db`):**
+   * Cada cruce genera un registro completo e indexado:
+     $$\text{Registro} = [\text{Timestamp}, \text{UID Tarjeta}, \text{Titular}, \text{Disparo IR}, \text{Personas Detectadas (YOLO)}, \text{Ruta Foto Forense}]$$
+   * La fotografía queda guardada en el directorio `/captures/ev_XXXX.jpg` para auditoría administrativa.
+
+#### C. Arquitectura Eléctrica y Cableado del Servomotor (Reglas Estrictas)
+* **Peligro de Corriente Inductiva:** Los servomotores (SG90 / MG90S) tienen un consumo en reposo bajo (~15 mA), pero en el instante en que arrancan demandan **picos de corriente inductiva de 500 mA a 1.2 A**.
+* **Prohibición:** **NUNCA alimentar el servomotor desde el pin 3.3V del ESP32 ni desde el módulo MB102**. El regulador lineal colapsaría térmicamente y resetearía el microcontrolador.
+* **Fuente Externa + Step-Down LM2596:**
+  1. Conectar la fuente de pared **12V 2A** a la entrada `IN (+/-)` del convertidor conmutado **LM2596**.
+  2. Ajustar el potenciómetro multivuelta del LM2596 con un multímetro en mano hasta medir exactamente **$5.00\text{ V}$** en los terminales `OUT (+/-)`.
+  3. **Conexiones del Servomotor:**
+     * **Cable Rojo (VCC):** A la salida **+5.0V** del LM2596.
+     * **Cable Marrón / Negro (GND):** A la salida **GND** del LM2596 y **obligatoriamente unido al GND común** de la protoboard y del ESP32-S3.
+     * **Cable Naranja / Amarillo (Señal PWM):** Al pin GPIO asignado del ESP32-S3 (por ejemplo, **GPIO 3** o el pin libre acordado de la regleta).
+* **Precaución de Pines:** Recordar que **GPIO 4 y GPIO 5 están ocupados por el bus SCCB (I2C) de la cámara OV5640**, y **GPIO 47 es el pin MISO del lector RFID RC522**. Jamás usarlos para el servo.
+
+---
+
+### 📋 ROADMAP DE EJECUCIÓN INMEDIATA (PARA CONTINUAR MAÑANA)
+
+1. **Paso 1 (Calibración Eléctrica del Step-Down):** Medir los 5.0V del LM2596 con el multímetro y puentear la línea de tierra común.
+2. **Paso 2 (Creación del Firmware Fase 4):** Crear la carpeta `recinto-control/firmware/Fase4_ESP32_IR_RFID_Buzzer_Servo_Camera/` con el código unificado integrando la librería de control PWM del servo.
+3. **Paso 3 (Ampliación del Backend en FastAPI):** Implementar el endpoint para recepción de capturas forenses en ráfaga (5 FPS) y persistencia de eventos con foto en `recinto_events.db`.
+4. **Paso 4 (Ampliación del Dashboard Web):** Incorporar en la Pestaña 1 el indicador de estado físico de la puerta (🟢 **ABIERTA** / 🔴 **BLOQUEADA**) y el visor de fotografías forenses de las últimas personas que ingresaron.
+
