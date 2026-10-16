@@ -311,27 +311,28 @@ recinto-control/
 3. Enciende el ESP32 y el módulo MB102 (3.3V).
 4. El monitor serie del ESP32 (115200 baudios) confirmará:
    ```text
-   ==============================================================
-      TEST EXCLUSIVO DE DIAGNÓSTICO RFID RC522 - ESP32-S3
-   ==============================================================
-   Configuración de Pines SPI:
-     -> SDA (SS) : GPIO 2
-     -> SCK      : GPIO 14
-     -> MOSI     : GPIO 21
-     -> MISO     : GPIO 47
-     -> RST      : GPIO 48
-     -> BUZZER   : GPIO 42 (Transistor 2N2222A)
-   [PASO 1] Inicializando bus SPI por hardware...
-   [PASO 2] Inicializando chip MFRC522 (PCD_Init)...
-   [OK] Lector detectado: 0x82 (Version clon funcional - OK)
-   [ESTADO] Listo. Acerca una tarjeta al lector...
+   ================================================================
+    ESP32-S3 N16R8 - FASE 3: CAM + IR + RFID RC522 + BUZZER ACTIVO
+   ================================================================
+   Flash detectada: 16 MB
+   PSRAM detectada: 8 MB
+   [OK] Buzzer Activo inicializado en GPIO 42 (Driver 2N2222A)
+   [OK] Sensor IR inicializado en GPIO 1 (Estado inicial: LIBRE)
+   Inicializando bus SPI para RFID RC522...
+     -> SCK: GPIO 14 | MOSI: GPIO 21 | MISO: GPIO 47 | SDA(SS): GPIO 2 | RST: GPIO 48
+     -> Registro VersionReg RC522: 0x82 (MFRC522 Clon funcional - OK)
+   Inicializando cámara OV5640...
+   [OK] Cámara OV5640 inicializada correctamente.
+   WIFI CONECTADO
+     IP Local Cámara: http://192.168.1.111
    ```
-5. **Pruebas en tiempo real:**
+5. **Pruebas en tiempo real (100% Validadas en Hardware):**
    * **Arranque:** Al encender o resetear, el buzzer emite un micro-bip de 80 ms confirmando que el GPIO 42 y el transistor operan correctamente.
    * **RFID Denegado:** Al pasar la tarjeta `73230E06`, el monitor serie marca `🔴 [ACCESO DENEGADO]` y el buzzer emite **3 bips rápidos de advertencia**.
    * **RFID Concedido:** Al pasar la tarjeta `6C8D1B06`, el monitor serie marca `🟢 [ACCESO CONCEDIDO]` y el buzzer emite **1 bip largo de bienvenida (150 ms)**.
    * **Paso IR:** Al pasar la mano a 5 cm del sensor IR, el panel web conmuta a 🔴 **DETECTADO** y suma +1 activación.
    * **Cámara OV5640 + YOLO:** Video en vivo continuo con conteo instantáneo de personas presentes.
+   * **Telemetría de Hardware:** El microcontrolador reporta periódicamente en Heartbeat el estado de salud del chip RC522 y periféricos.
 
 ---
 
