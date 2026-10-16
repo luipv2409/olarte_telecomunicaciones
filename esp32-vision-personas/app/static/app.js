@@ -37,6 +37,55 @@ document.addEventListener("DOMContentLoaded", () => {
     const rfidLastTime = document.getElementById("rfid-last-time");
     const rfidCardsList = document.getElementById("rfid-cards-list");
 
+    // Hardware Diagnostic Elements (Fase 3)
+    const hwGlobalPill = document.getElementById("hw-global-pill");
+    const hwGlobalText = document.getElementById("hw-global-text");
+    const btnHwRefresh = document.getElementById("btn-hw-refresh");
+    const hwRc522Chip = document.getElementById("hw-rc522-chip");
+    const hwRc522Badge = document.getElementById("hw-rc522-badge");
+    const hwRc522Guide = document.getElementById("hw-rc522-guide");
+    const pinPillMosi = document.getElementById("pin-pill-mosi");
+    const pinPillMiso = document.getElementById("pin-pill-miso");
+    const ledPin21 = document.getElementById("led-pin-21");
+    const ledPin47 = document.getElementById("led-pin-47");
+    const ledPin1 = document.getElementById("led-pin-1");
+    const hwIrBadge = document.getElementById("hw-ir-badge");
+    const hwCamBadge = document.getElementById("hw-cam-badge");
+    const btnTestBuzzerSuccess = document.getElementById("btn-test-buzzer-success");
+    const btnTestBuzzerDenied = document.getElementById("btn-test-buzzer-denied");
+    const virtualBuzzerLed = document.getElementById("virtual-buzzer-led");
+    const virtualBuzzerText = document.getElementById("virtual-buzzer-text");
+
+    // Sintetizador Web Audio API para simular y reproducir la frecuencia del buzzer (2700 Hz)
+    let audioCtx = null;
+    function playBuzzerTone(durationMs, count = 1, intervalMs = 80) {
+        try {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            let startTime = audioCtx.currentTime;
+            for (let i = 0; i < count; i++) {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = "square";
+                osc.frequency.setValueAtTime(2700, startTime);
+                
+                gain.gain.setValueAtTime(0.2, startTime);
+                gain.gain.setValueAtTime(0.001, startTime + (durationMs / 1000));
+                
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                
+                osc.start(startTime);
+                osc.stop(startTime + (durationMs / 1000));
+                
+                startTime += ((durationMs + intervalMs) / 1000);
+            }
+        } catch(e) {
+            console.warn("Audio no soportado o bloqueado por el navegador:", e);
+        }
+    }
+
     let isFetching = false;
     let pollInterval = 1000; // ms para respuesta ágil
 
@@ -162,6 +211,88 @@ document.addEventListener("DOMContentLoaded", () => {
                     captureTimeElem.textContent = `Última: ${date.toLocaleTimeString()}`;
                 }
 
+                // Telemetría de Hardware y Diagnóstico de Pines (Fase 3)
+                if (data.hardware) {
+                    const hw = data.hardware;
+
+                    // 1. Diagnóstico del Lector RFID RC522
+                    if (hw.rc522) {
+                        const rcf = hw.rc522;
+                        if (hwRc522Chip) hwRc522Chip.textContent = rcf.chip_desc || `MFRC522 (${rcf.version_hex})`;
+
+                        if (rcf.status === "OK") {
+                            if (hwRc522Badge) {
+                                hwRc522Badge.className = "badge-status-ok";
+                                hwRc522Badge.textContent = `🟢 OK (${rcf.version_hex})`;
+                            }
+                            if (hwRc522Guide) {
+                                hwRc522Guide.className = "hw-guide-alert";
+                                hwRc522Guide.innerHTML = `✅ <b>Estado Saludable:</b> ${rcf.solution}`;
+                            }
+                            if (pinPillMosi) pinPillMosi.className = "pin-pill pin-ok";
+                            if (pinPillMiso) pinPillMiso.className = "pin-pill pin-ok";
+                            if (ledPin21) ledPin21.className = "pin-led led-ok";
+                            if (ledPin47) ledPin47.className = "pin-led led-ok";
+                        } else if (rcf.status && rcf.status.includes("SHORT")) {
+                            if (hwRc522Badge) {
+                                hwRc522Badge.className = "badge-status-warn";
+                                hwRc522Badge.textContent = "⚠️ CORTO 21/47 (0xEE)";
+                            }
+                            if (hwRc522Guide) {
+                                hwRc522Guide.className = "hw-guide-alert hw-guide-warn";
+                                hwRc522Guide.innerHTML = `⚠️ <b>Atención en Cables:</b> ${rcf.solution}`;
+                            }
+                            if (pinPillMosi) pinPillMosi.className = "pin-pill pin-warn-active";
+                            if (pinPillMiso) pinPillMiso.className = "pin-pill pin-warn-active";
+                            if (ledPin21) ledPin21.className = "pin-led led-warn";
+                            if (ledPin47) ledPin47.className = "pin-led led-warn";
+                        } else {
+                            if (hwRc522Badge) {
+                                hwRc522Badge.className = "badge-status-error";
+                                hwRc522Badge.textContent = `🔴 ERROR (${rcf.version_hex})`;
+                            }
+                            if (hwRc522Guide) {
+                                hwRc522Guide.className = "hw-guide-alert hw-guide-error";
+                                hwRc522Guide.innerHTML = `🔴 <b>Falla de Comunicación:</b> ${rcf.solution}`;
+                            }
+                            if (ledPin21) ledPin21.className = "pin-led led-err";
+                            if (ledPin47) ledPin47.className = "pin-led led-err";
+                        }
+                    }
+
+                    // 2. Sensor Infrarrojo
+                    if (data.ir_sensor) {
+                        const isDet = data.ir_sensor.is_detected;
+                        if (hwIrBadge) {
+                            hwIrBadge.className = isDet ? "badge-status-warn" : "badge-status-ok";
+                            hwIrBadge.textContent = isDet ? "🔴 HAZ DETECTADO (0V)" : "🟢 HAZ LIBRE (3.3V)";
+                        }
+                        if (ledPin1) {
+                            ledPin1.className = isDet ? "pin-led led-warn" : "pin-led led-ok";
+                        }
+                    }
+
+                    // 3. Cámara OV5640
+                    if (hwCamBadge) {
+                        hwCamBadge.className = data.camera.connected ? "badge-status-ok" : "badge-status-error";
+                        hwCamBadge.textContent = data.camera.connected ? "🟢 OK (VGA 640x480)" : "🔴 DESCONECTADO";
+                    }
+
+                    // 4. Pastilla de Estado Global
+                    if (hwGlobalPill && hwGlobalText) {
+                        if (hw.rc522 && hw.rc522.status !== "OK") {
+                            hwGlobalPill.className = "status-pill status-disconnected";
+                            hwGlobalText.textContent = "⚠️ REVISAR CABLEADO SPI";
+                        } else if (!data.camera.connected) {
+                            hwGlobalPill.className = "status-pill status-disconnected";
+                            hwGlobalText.textContent = "⚠️ CÁMARA DESCONECTADA";
+                        } else {
+                            hwGlobalPill.className = "status-pill status-connected";
+                            hwGlobalText.textContent = "HARDWARE 100% OPERATIVO";
+                        }
+                    }
+                }
+
                 // Recargar imagen solo si hay conexión
                 refreshImage();
             }
@@ -221,6 +352,66 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
     }
+
+    // Eventos de Prueba del Buzzer (Fase 3)
+    if (btnTestBuzzerSuccess) {
+        btnTestBuzzerSuccess.addEventListener("click", async () => {
+            playBuzzerTone(150, 1);
+            if (virtualBuzzerLed) {
+                virtualBuzzerLed.className = "virtual-led led-active-success";
+                virtualBuzzerText.textContent = "Bip Éxito (150ms)";
+                setTimeout(() => {
+                    virtualBuzzerLed.className = "virtual-led";
+                    virtualBuzzerText.textContent = "Reposo";
+                }, 400);
+            }
+            try {
+                await fetch("/api/test/buzzer", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({ pattern: "success" })
+                });
+            } catch(e) {}
+        });
+    }
+
+    if (btnTestBuzzerDenied) {
+        btnTestBuzzerDenied.addEventListener("click", async () => {
+            playBuzzerTone(80, 3, 80);
+            if (virtualBuzzerLed) {
+                virtualBuzzerLed.className = "virtual-led led-active-denied";
+                virtualBuzzerText.textContent = "Alarma Denegado (3x80ms)";
+                setTimeout(() => {
+                    virtualBuzzerLed.className = "virtual-led";
+                    virtualBuzzerText.textContent = "Reposo";
+                }, 600);
+            }
+            try {
+                await fetch("/api/test/buzzer", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({ pattern: "denied" })
+                });
+            } catch(e) {}
+        });
+    }
+
+    if (btnHwRefresh) {
+        btnHwRefresh.addEventListener("click", () => {
+            updateDashboard();
+        });
+    }
+
+    // Interacción con los Pines del Mapa Visual
+    document.querySelectorAll(".pin-item").forEach(item => {
+        item.addEventListener("click", () => {
+            const pinName = item.getAttribute("data-pin");
+            const pinDesc = item.getAttribute("title");
+            if (pinDesc) {
+                alert(`[PIN ${pinName}]\n\n${pinDesc}`);
+            }
+        });
+    });
 
     // Bucle periódico de refresco
     setInterval(updateDashboard, pollInterval);

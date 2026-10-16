@@ -104,14 +104,23 @@ class SystemState:
         self.rfid_last_uid: Optional[str] = "6C8D1B06"
         self.rfid_last_picc: Optional[str] = "MIFARE 1KB"
         self.rfid_last_time: Optional[str] = "09:57:35"
-        self.rfid_total_reads: int = 5
+        self.rfid_total_reads: int = 14
         self.rfid_status: str = "ACCESO AUTORIZADO"
         self.rfid_card_holder: str = "Socio Activo #2 (Acceso Concedido)"
         self.rfid_access_granted: bool = True
         self.known_cards: dict = {
-            "73230E06": {"uid": "73230E06", "picc": "MIFARE 1KB", "holder": "Socio #1 (TARJETA BLOQUEADA)", "status": "BLOQUEADA", "authorized": False, "last_seen": "09:51:43", "scans": 3},
-            "6C8D1B06": {"uid": "6C8D1B06", "picc": "MIFARE 1KB", "holder": "Socio Activo #2 (Acceso Concedido)", "status": "AUTORIZADA", "authorized": True, "last_seen": "09:57:35", "scans": 2}
+            "73230E06": {"uid": "73230E06", "picc": "MIFARE 1KB", "holder": "Socio #1 (TARJETA BLOQUEADA)", "status": "BLOQUEADA", "authorized": False, "last_seen": "18:12:05", "scans": 7},
+            "6C8D1B06": {"uid": "6C8D1B06", "picc": "MIFARE 1KB", "holder": "Socio Activo #2 (Acceso Concedido)", "status": "AUTORIZADA", "authorized": True, "last_seen": "18:13:22", "scans": 7}
         }
+
+        # Telemetría de Hardware y Pines (Fase 3)
+        self.rc522_version: str = "0x82"
+        self.rc522_hardware_status: str = "OK"  # "OK", "SHORT_MOSI_MISO_PINS_21_47", "DISCONNECTED_OR_NO_POWER", "UNSTABLE_BUS_NOISE"
+        self.buzzer_pin: int = 42
+        self.buzzer_last_pattern: Optional[str] = "startup (80ms)"
+        self.buzzer_last_tested_time: Optional[str] = "18:06:46"
+        self.firmware_version: str = "3.0.0-fase3"
+        self.wifi_rssi: int = -52
 
 
 state = SystemState()
@@ -281,6 +290,54 @@ async def get_status():
             "access_granted": state.rfid_access_granted,
             "known_cards": list(state.known_cards.values())
         },
+        "hardware": {
+            "device_online": state.device_online,
+            "firmware_version": state.firmware_version,
+            "wifi_rssi": state.wifi_rssi,
+            "buzzer": {
+                "pin": state.buzzer_pin,
+                "driver": "Transistor 2N2222A (NPN Low-Side)",
+                "base_resistor": "1 kΩ",
+                "voltage": "3.3V (MB102)",
+                "status": "OPERATIVO",
+                "last_pattern": state.buzzer_last_pattern,
+                "last_tested": state.buzzer_last_tested_time
+            },
+            "rc522": {
+                "version_hex": state.rc522_version,
+                "status": state.rc522_hardware_status,
+                "chip_desc": "MFRC522 Clon funcional legítimo (0x82)" if state.rc522_version == "0x82" else ("MFRC522 Original v2.0 (0x92)" if state.rc522_version == "0x92" else "Chip no reconocido"),
+                "spi_pins": {
+                    "SCK": {"gpio": 14, "header": "Izquierda (pin 2 desde abajo)", "status": "OK"},
+                    "MOSI": {"gpio": 21, "header": "Derecha (pin 4 desde abajo)", "status": "WARN" if "SHORT" in state.rc522_hardware_status else "OK"},
+                    "MISO": {"gpio": 47, "header": "Derecha (pin 5 desde abajo)", "status": "WARN" if "SHORT" in state.rc522_hardware_status else "OK"},
+                    "SDA_SS": {"gpio": 2, "header": "Izquierda (pin 8 desde abajo)", "status": "OK"},
+                    "RST": {"gpio": 48, "header": "Derecha (pin 6 desde abajo)", "status": "OK"}
+                },
+                "solution": (
+                    "Bus SPI saludable a 3.3V. Lector respondiendo correctamente." if state.rc522_hardware_status == "OK"
+                    else ("⚠️ CORTOCIRCUITO DETECTADO entre MOSI (GPIO 21) y MISO (GPIO 47). Separa físicamente los conectores Dupont contiguos." if "SHORT" in state.rc522_hardware_status
+                    else "🔴 SIN COMUNICACIÓN. Revisa que el botón del módulo MB102 esté encendido y que el cable de Masa Común (GND) esté firme.")
+                )
+            },
+            "ir_sensor": {
+                "pin": 1,
+                "header": "Izquierda (penúltimo pin arriba)",
+                "state": state.ir_state,
+                "solution": "Si no detecta o el LED del módulo está siempre encendido, gira suavemente el potenciómetro azul para calibrar a 5-10 cm."
+            },
+            "pins_map": [
+                {"gpio": 1, "name": "IR_OUT", "side": "LEFT", "type": "INPUT_PULLUP", "target": "Sensor IR OUT", "status": "OK"},
+                {"gpio": 2, "name": "SPI_SS", "side": "LEFT", "type": "OUTPUT", "target": "RC522 SDA/SS", "status": "OK"},
+                {"gpio": 14, "name": "SPI_SCK", "side": "LEFT", "type": "OUTPUT", "target": "RC522 SCK", "status": "OK"},
+                {"gpio": 21, "name": "SPI_MOSI", "side": "RIGHT", "type": "OUTPUT", "target": "RC522 MOSI", "status": "WARN" if "SHORT" in state.rc522_hardware_status else "OK"},
+                {"gpio": 47, "name": "SPI_MISO", "side": "RIGHT", "type": "INPUT", "target": "RC522 MISO", "status": "WARN" if "SHORT" in state.rc522_hardware_status else "OK"},
+                {"gpio": 48, "name": "RC522_RST", "side": "RIGHT", "type": "OUTPUT", "target": "RC522 RST", "status": "OK"},
+                {"gpio": 42, "name": "BUZZER_ACT", "side": "RIGHT", "type": "OUTPUT", "target": "Base 2N2222A (1kΩ)", "status": "OK"},
+                {"gpio": 0, "name": "GND", "side": "RIGHT", "type": "POWER", "target": "Masa Común (Riel Azul)", "status": "OK"},
+                {"gpio": 0, "name": "3V3", "side": "LEFT", "type": "POWER", "target": "Riel 3.3V (MB102)", "status": "OK"}
+            ]
+        },
         "deepseek": deepseek_client.get_status_info(),
         "fps_estimate": state.fps_estimate,
         "disclaimer": "Estimación instantánea de personas presentes en el encuadre. No acumulativo ni biométrico."
@@ -401,14 +458,111 @@ async def receive_sensor_event(device_id: str, payload: Dict[str, Any]):
 @app.post("/api/v1/devices/{device_id}/heartbeat")
 async def receive_device_heartbeat(device_id: str, payload: Optional[Dict[str, Any]] = None):
     """
-    Latido periódico del ESP32 para verificar estado de conexión.
+    Latido periódico del ESP32 para verificar estado de conexión y telemetría de hardware.
     """
     state.device_online = True
     state.device_last_seen = time.time()
+    
+    if payload:
+        if "rc522_version" in payload:
+            state.rc522_version = str(payload["rc522_version"])
+        if "rc522_hardware_status" in payload:
+            state.rc522_hardware_status = str(payload["rc522_hardware_status"])
+        if "buzzer_pin" in payload:
+            state.buzzer_pin = int(payload["buzzer_pin"])
+        if "wifi_rssi" in payload:
+            state.wifi_rssi = int(payload["wifi_rssi"])
+        if "firmware_version" in payload:
+            state.firmware_version = str(payload["firmware_version"])
+
     return {
         "status": "ok",
         "device_id": device_id,
-        "server_time": time.time()
+        "server_time": time.time(),
+        "hardware_recorded": {
+            "rc522_version": state.rc522_version,
+            "rc522_status": state.rc522_hardware_status
+        }
+    }
+
+
+@app.post("/api/test/buzzer")
+async def test_buzzer(payload: Optional[Dict[str, Any]] = None):
+    """
+    Dispara una prueba acústica o simulación del buzzer.
+    Patrones: 'startup' (80ms), 'success' (150ms), 'denied' (3x80ms)
+    """
+    pattern = payload.get("pattern", "success") if payload else "success"
+    now_str = time.strftime("%H:%M:%S")
+    state.buzzer_last_pattern = pattern
+    state.buzzer_last_tested_time = now_str
+
+    durations = {"startup": 80, "success": 150, "denied": 240}
+    desc = {
+        "startup": "Micro-bip de arranque (80 ms)",
+        "success": "Bip de Bienvenida / Acceso Concedido (150 ms)",
+        "denied": "Alarma de Acceso Denegado (3 pulsos de 80 ms)"
+    }
+
+    logger.info("[TEST BUZZER] Patrón '%s' probado (%s)", pattern, desc.get(pattern, "Custom"))
+
+    return {
+        "status": "success",
+        "pattern": pattern,
+        "description": desc.get(pattern, pattern),
+        "duration_ms": durations.get(pattern, 100),
+        "pin": state.buzzer_pin,
+        "driver": "2N2222A Low-Side Switch",
+        "timestamp": now_str
+    }
+
+
+@app.post("/api/test/simulate-card")
+async def simulate_card_scan(payload: Optional[Dict[str, Any]] = None):
+    """
+    Simula la lectura de una tarjeta RFID desde el dashboard.
+    """
+    card_type = payload.get("type", "authorized") if payload else "authorized"
+    if card_type == "authorized":
+        uid = "6C8D1B06"
+        decision = "GRANTED"
+        holder = "Socio Activo #2 (Acceso Concedido)"
+    else:
+        uid = "73230E06"
+        decision = "DENIED"
+        holder = "Socio #1 (TARJETA BLOQUEADA)"
+
+    now_str = time.strftime("%H:%M:%S")
+    state.rfid_last_uid = uid
+    state.rfid_last_time = now_str
+    state.rfid_total_reads += 1
+    state.rfid_card_holder = holder
+    state.rfid_access_granted = (decision == "GRANTED")
+    state.rfid_status = "ACCESO AUTORIZADO" if decision == "GRANTED" else "ACCESO DENEGADO"
+
+    if uid in state.known_cards:
+        state.known_cards[uid]["scans"] += 1
+        state.known_cards[uid]["last_seen"] = now_str
+
+    event_id = f"sim-{int(time.time()*1000)}"
+    save_event_db(event_id, "RFID_1", "CARD_SCANNED", now_str, now_str, True, uid, holder)
+
+    state.ir_recent_events.insert(0, {
+        "event_id": event_id,
+        "event_type": "CARD_SCANNED",
+        "sensor_id": "RFID_1",
+        "uid": uid,
+        "card_holder": holder,
+        "time": now_str,
+        "is_simulated": True
+    })
+
+    return {
+        "status": "simulated",
+        "uid": uid,
+        "decision": decision,
+        "holder": holder,
+        "reads": state.rfid_total_reads
     }
 
 
