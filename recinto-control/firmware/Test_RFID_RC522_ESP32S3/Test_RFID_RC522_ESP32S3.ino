@@ -32,12 +32,37 @@
 #define RFID_MOSI_PIN 21 // MOSI en RC522
 #define RFID_MISO_PIN 47 // MISO en RC522
 
+// Pin del Buzzer Activo (controlado por Transistor 2N2222A con resistencia de 1kΩ)
+#define BUZZER_PIN 42
+
 // Instancia del lector MFRC522
 MFRC522 mfrc522(RFID_SS_PIN, RFID_RST_PIN);
 
 unsigned long lastStatusPrint = 0;
 const unsigned long STATUS_INTERVAL_MS = 3000;
 unsigned long totalScans = 0;
+
+// Funciones de señalización acústica
+void beepStartup() {
+  digitalWrite(BUZZER_PIN, HIGH);
+  delay(80);
+  digitalWrite(BUZZER_PIN, LOW);
+}
+
+void beepSuccess() {
+  digitalWrite(BUZZER_PIN, HIGH);
+  delay(150);
+  digitalWrite(BUZZER_PIN, LOW);
+}
+
+void beepDenied() {
+  for (int i = 0; i < 3; i++) {
+    digitalWrite(BUZZER_PIN, HIGH);
+    delay(80);
+    digitalWrite(BUZZER_PIN, LOW);
+    delay(80);
+  }
+}
 
 void setup() {
   Serial.begin(115200);
@@ -55,8 +80,11 @@ void setup() {
   Serial.printf("  -> MOSI     : GPIO %d\n", RFID_MOSI_PIN);
   Serial.printf("  -> MISO     : GPIO %d\n", RFID_MISO_PIN);
   Serial.printf("  -> RST      : GPIO %d\n", RFID_RST_PIN);
-  Serial.println(
-      "--------------------------------------------------------------");
+  // 0. Inicializar Buzzer
+  pinMode(BUZZER_PIN, OUTPUT);
+  digitalWrite(BUZZER_PIN, LOW);
+  Serial.printf("  -> BUZZER   : GPIO %d (Transistor 2N2222A)\n", BUZZER_PIN);
+  beepStartup(); // Micro-bip de confirmación de arranque
 
   // 1. Inicializar bus SPI en los GPIOs designados
   Serial.println("[PASO 1] Inicializando bus SPI por hardware...");
@@ -146,13 +174,16 @@ void loop() {
       Serial.println("  POLÍTICA    : 🔴 [ACCESO DENEGADO]");
       Serial.println("  ESTADO      : CREDENCIAL BLOQUEADA");
       Serial.println("  TITULAR     : Socio #1");
+      beepDenied();
     } else if (uidHex == "6C8D1B06") {
       Serial.println("  POLÍTICA    : 🟢 [ACCESO CONCEDIDO]");
       Serial.println("  ESTADO      : CREDENCIAL AUTORIZADA");
       Serial.println("  TITULAR     : Socio Activo #2");
+      beepSuccess();
     } else {
       Serial.println("  POLÍTICA    : ⚪ [CREDENCIAL NO REGISTRADA]");
       Serial.println("  ESTADO      : TARJETA DESCONOCIDA");
+      beepDenied();
     }
     Serial.println("**************************************************");
     Serial.println();

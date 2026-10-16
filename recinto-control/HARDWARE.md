@@ -1,6 +1,6 @@
 # HARDWARE.md — Mapa de Conexiones, Alimentación y Seguridad Eléctrica
 
-> **ESTADO GENERAL:** Fase 0 y Fase 1 preparadas por software. Conexión de sensores físicos: **ESTRICTAMENTE PENDIENTE DE VALIDACIÓN**.
+> **ESTADO GENERAL:** Fase 0, Fase 1 (IR + Cámara), Fase 2 (RFID RC522) y Fase 3 (Buzzer con Transistor 2N2222A): **VALIDADOS EN HARDWARE FÍSICO**. Próximos pasos: LEDs y Servomotor (Fase 4).
 
 ---
 
@@ -36,11 +36,11 @@
 | **Cámara OV5640 (SCCB/I2C)** | GPIO 4 (SDA), GPIO 5 (SCL) | **OCUPADO** | 3.3 V | Bus I2C de configuración del sensor OV5640 |
 | **Memoria PSRAM OPI 8MB** | GPIO 33, 34, 35, 36, 37 | **OCUPADO** | Interno | Bus de datos Octal SPI. No tocar |
 | **Puerto USB-UART** | GPIO 43 (U0TXD), GPIO 44 (U0RXD) | **OCUPADO** | 3.3 V | Monitor serie a 115200 baudios |
-| **Sensor IR #1 (Fase 1)** | **GPIO 1** | **ACTIVO (FASE 1)** | 3.3 V | Entrada digital `INPUT_PULLUP`. (LOW = Detectado, HIGH = Libre) |
+| **Sensor IR #1 (Fase 1)** | **GPIO 1** | **VALIDADO (FASE 1)** | 3.3 V | Entrada digital `INPUT_PULLUP`. (LOW = Detectado, HIGH = Libre) |
 | **Lector RFID RC522 (Fase 2)** | **GPIO 14 (SCK), 21 (MOSI), 47 (MISO), 2 (SDA/SS), 48 (RST)** | **VALIDADO (FASE 2)** | 3.3 V | Bus SPI. Alimentación estricta a 3.3V. LED IO2 parpadea en lectura |
-| **LED Verde / Rojo (Fase 3)** | Por definir | **FUTURO** | 3.3 V | Requiere resistencias de 220 Ω / 330 Ω |
-| **Buzzer Activo 5V (Fase 3)** | Por definir | **FUTURO** | 3.3 V a base | Requiere transistor 2N2222A y diodo de protección |
-| **Servo Maqueta (Fase 4)** | Por definir (PWM LEDC) | **FUTURO** | Señal 3.3 V | Alimentación motriz 5V externa separada |
+| **Buzzer Activo 5V (Fase 3)** | **GPIO 42** | **ACTIVO (FASE 3)** | 3.3 V a base | Conmutador NPN 2N2222A con Rb = 1 kΩ. Señalización acústica |
+| **LED Verde / Rojo (Fase 3)** | GPIO 19 (Verde), GPIO 20 (Rojo) | **FUTURO** | 3.3 V | Requiere resistencias de 220 Ω en serie |
+| **Servo Maqueta (Fase 4)** | Por definir (PWM LEDC) | **FUTURO** | Señal 3.3 V | Alimentación 5.0V externa mediante Step-Down LM2596 (12V 2A) |
 
 ---
 

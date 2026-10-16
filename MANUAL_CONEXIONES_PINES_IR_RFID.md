@@ -1,4 +1,4 @@
-# GUÍA DEFINITIVA DE CONEXIÓN FÍSICA: SENSOR INFRARROJO + LECTOR RFID RC522
+# GUÍA DEFINITIVA DE CONEXIÓN FÍSICA: SENSOR IR + LECTOR RFID RC522 + BUZZER ACTIVO (2N2222A)
 ## Placa: ESP32-S3 N16R8 (PCB V1695) con Cámara OV5640 5MP
 
 ---
@@ -10,10 +10,14 @@
    * **¡JAMÁS conectes el RC522 a 5V!** El circuito integrado MFRC522 no tolera 5V y se quema de forma permanente e irreversible.
 
 2. **MASA COMÚN OBLIGATORIA (GND)**
-   * El riel **GND** de la protoboard, el pin **GND** del ESP32, el pin **GND** del RC522 y el pin **GND** del sensor IR deben estar **todos interconectados entre sí**.
-   * Si las masas no están unidas, las señales del bus SPI flotan y el lector reporta error `0x00` o `0xFF`.
+   * El riel **GND** de la protoboard, el pin **GND** del ESP32, el pin **GND** del RC522, el pin **GND** del sensor IR y el **Emisor del Transistor 2N2222A** deben estar **todos interconectados entre sí**.
+   * Si las masas no están unidas, el bus SPI y las conmutaciones de actuadores flotan provocando lecturas erróneas.
 
-3. **PIN IRQ DEL RC522: NO SE CONECTA**
+3. **CONTROL DEL BUZZER: TRANSISTOR 2N2222A CON RESISTENCIA DE 1 kΩ**
+   * Nunca conectes el buzzer directamente al GPIO del ESP32 con una resistencia de 220 Ω; la caída de tensión dejará al buzzer en 1.38V (inaudible) y pondrá en riesgo el pin por corriente inductiva.
+   * Se utiliza el transistor 2N2222A como conmutador de masa (*Low-Side Switch*).
+
+4. **PIN IRQ DEL RC522: NO SE CONECTA**
    * El pin `IRQ` del lector RC522 se deja **completamente libre / al aire**.
 
 ---
@@ -31,7 +35,7 @@ Mirando la placa de frente, con la **cámara OV5640 arriba** y los **dos puertos
     (GPIO 1) [●]─┼── IR (OUT)            │ [ ]  (TX - 43)
        (4)   [ ] │                       │ [ ]  (1)
        (5)   [ ] │                       │ [ ]  (2)
-       (6)   [ ] │                       │ [ ]  (42)
+       (6)   [ ] │                       │ [●]──(GPIO 42) ── BUZZER (Base 2N2222A + 1kΩ)
        (7)   [ ] │                       │ [ ]  (41)
       (15)   [ ] │      ESP32-S3         │ [ ]  (40)
       (16)   [ ] │       N16R8           │ [ ]  (39)
@@ -44,8 +48,8 @@ Mirando la placa de frente, con la **cámara OV5640 arriba** y los **dos puertos
       (10)   [ ] │                       │ [●]──(GPIO 48) ── RC522 (RST)
       (11)   [ ] │  LEDs: [IO2] [48]     │ [●]──(GPIO 47) ── RC522 (MISO)
       (12)   [ ] │  [EN]         [BOOT]  │ [●]──(GPIO 21) ── RC522 (MOSI)
-      (13)   [ ] │                       │ [ ]  (20)
-   (GPIO 14) [●]─┼── RC522 (SCK)         │ [ ]  (19)
+      (13)   [ ] │                       │ [ ]  (20) ────── [LED Rojo Fase 3]
+   (GPIO 14) [●]─┼── RC522 (SCK)         │ [ ]  (19) ────── [LED Verde Fase 3]
       (5V)   [ ] │                       │ [●]──(GND) ────── MASA COMÚN
                  └───┬───────────────┬───┘
                      │  USB-UART     │  USB-OTG
@@ -79,7 +83,24 @@ Mirando la placa de frente, con la **cámara OV5640 arriba** y los **dos puertos
 
 ---
 
-## 4. CHECKLIST PASO A PASO PARA VERIFICAR CADA CABLE
+## 4. TABLA PIN A PIN: BUZZER ACTIVO 5V + TRANSISTOR NPN 2N2222A (FASE 3)
+
+| Componente | Terminal / Pin Físico | Conexión en Protoboard / ESP32-S3 | Función Eléctrica |
+| :--- | :--- | :--- | :--- |
+| **Buzzer Activo** | Pata Larga / Positiva `(+)` | Riel **3.3V** de la Protoboard (MB102) | Alimentación positiva de la bobina |
+| **Buzzer Activo** | Pata Corta / Negativa `(-)` | Pin 3 (Colector) del Transistor 2N2222A | Retorno a masa conmutado por transistor |
+| **Transistor 2N2222A** | **Pin 1 (Izquierda) — Emisor (E)** | Riel **GND** (Masa común azul) | Referencia 0V a tierra |
+| **Transistor 2N2222A** | **Pin 2 (Centro) — Base (B)** | A un extremo de la **Resistencia de 1 kΩ** | Control de conmutación |
+| **Resistencia 1 kΩ** | Extremo opuesto | Pin **`42`** (GPIO 42 del ESP32-S3) | Limita corriente de base a $2.6\text{ mA}$ |
+| **Transistor 2N2222A** | **Pin 3 (Derecha) — Colector (C)** | A la pata negativa `(-)` del Buzzer | Conduce masa al saturar el transistor |
+
+> **Orientación del Transistor 2N2222A (TO-92):**  
+> Mirando la cara **plana** (donde están grabadas las letras `2N2222A`) con las patitas hacia abajo:  
+> `[ 1: Emisor ]  [ 2: Base ]  [ 3: Colector ]`
+
+---
+
+## 5. CHECKLIST PASO A PASO PARA VERIFICAR CADA CABLE
 
 1. **Comprobar la Protoboard**:
    * Asegúrate de que los cables Dupont no tengan juego o queden flojos en los orificios.
@@ -92,27 +113,33 @@ Mirando la placa de frente, con la **cámara OV5640 arriba** y los **dos puertos
 3. **Calibración del Sensor Infrarrojo**:
    * Gira levemente el potenciómetro azul del sensor IR con un destornillador plano pequeño hasta que su segundo LED (Detección) se apague cuando no hay obstáculos a 10 cm, y se encienda cuando pasas la mano a 5 cm.
 
+4. **Prueba Rápida del Buzzer**:
+   * Al encender el ESP32, debe escucharse un bip corto instantáneo (`beepStartup`, 80 ms). Si no suena, verifica que la pata plana del transistor esté orientada correctamente y que la base esté conectada a GPIO 42 a través de la resistencia de 1 kΩ (Marrón-Negro-Rojo).
+
 ---
 
-## 5. CÓDIGO EN EL FIRMWARE (VERIFICACIÓN)
+## 6. CÓDIGO EN EL FIRMWARE (VERIFICACIÓN)
 
-En el archivo `Fase2_ESP32_IR_RFID_Camera.ino`, la sección de pines debe estar configurada exactamente así:
+En los archivos de firmware (`Test_RFID_RC522_ESP32S3.ino` y `Fase2_ESP32_IR_RFID_Camera.ino`):
 
 ```cpp
 // Sensor IR
 const int IR_GPIO_PIN = 1;
 
-// Lector RFID RC522
+// Lector RFID RC522 (Bus SPI)
 #define RFID_SS_PIN    2   // SDA en RC522
 #define RFID_RST_PIN   48  // RST en RC522
 #define RFID_SCK_PIN   14  // SCK en RC522
 #define RFID_MOSI_PIN  21  // MOSI en RC522
-#define RFID_MISO_PIN  47  // MISO en RC522
+#define RFID_MISO_PIN  47  // MISO en RC522 (¡NUNCA usar para buzzer!)
+
+// Buzzer Activo 5V (Conmutador NPN 2N2222A)
+#define BUZZER_PIN     42  // GPIO 42 a través de resistencia 1kΩ a Base
 ```
 
 ---
 
-## 6. QUÉ DEBES VER EN EL MONITOR SERIE AL ARRANCAR (115200 Baudios)
+## 7. QUÉ DEBES VER EN EL MONITOR SERIE AL ARRANCAR (115200 Baudios)
 
 Al presionar el botón físico **EN/RST** del ESP32:
 
@@ -137,7 +164,7 @@ Inicializando camara OV5640...
 
 ---
 
-## 7. POLÍTICA DE ACCESO DE LAS TARJETAS (CONFIGURADA EN EL SISTEMA)
+## 8. POLÍTICA DE ACCESO DE LAS TARJETAS (CONFIGURADA EN EL SISTEMA)
 
 | UID de Tarjeta | Titular Asignado | Política de Acceso | Resultado en Web / Serial |
 | :--- | :--- | :--- | :--- |

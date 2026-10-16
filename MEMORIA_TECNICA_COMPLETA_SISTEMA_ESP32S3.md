@@ -3,7 +3,7 @@
 
 > **Documento:** Memoria técnica integral y registro histórico del sistema.  
 > **Fecha de consolidación:** 16 de Octubre de 2026.  
-> **Estado:** Fase 0, Fase 1 y Fase 2 completadas, operativas y validadas en hardware real.
+> **Estado:** Fase 0, Fase 1, Fase 2 y Fase 3 (Buzzer Acústico) completadas, operativas y validadas en hardware real.
 
 ---
 
@@ -75,9 +75,10 @@ El sistema integra:
 | **Memoria PSRAM Octal** | GPIO 33, 34, 35, 36, 37 | **OCUPADO** | Bus OPI de alta velocidad reservado |
 | **Puerto Serie UART0** | GPIO 43 (U0TXD), GPIO 44 (U0RXD) | **OCUPADO** | Comunicación USB-UART a 115200 baud |
 | **Sensor Infrarrojo #1** | **GPIO 1** | **ACTIVO (FASE 1)** | Entrada digital `INPUT_PULLUP`. (LOW = Detectado, HIGH = Libre) |
-| **RFID RC522 (Fase 2)** | **GPIO 14 (SCK), 21 (MOSI), 47 (MISO), 2 (SDA/SS), 48 (RST)** | **LISTO PARA PRUEBA (FASE 2)** | Bus SPI a 3.3V estrictos. Compatible con OV5640 y PSRAM |
-| **LEDs / Buzzer (Fase 3)** | Por asignar | *Futuro* | Señalización luminosa y acústica |
-| **Servo Maqueta (Fase 4)**| Por asignar (PWM LEDC) | *Futuro* | Actuador de barrera (alimentación 5V externa separada) |
+| **RFID RC522 (Fase 2)** | **GPIO 14 (SCK), 21 (MOSI), 47 (MISO), 2 (SDA/SS), 48 (RST)** | **VALIDADO Y OPERATIVO (FASE 2)** | Bus SPI a 3.3V estrictos. Lectura de tarjetas UID `73230E06` y `6C8D1B06` |
+| **Buzzer Activo (Fase 3)** | **GPIO 42** | **ACTIVO (FASE 3)** | Driver NPN 2N2222A (Low-Side Switch) con $R_B = 1\text{ k}\Omega$ a 3.3V. Señalización acústica |
+| **LEDs Estado (Fase 3)** | GPIO 19 (Verde), GPIO 20 (Rojo) | *Reservados (Fase 3)* | Señalización luminosa con resistencias limitadoras de $220\text{ }\Omega$ |
+| **Servo Maqueta (Fase 4)**| GPIO por definir (PWM LEDC) | *Futuro (Fase 4)* | Actuador de barrera vehicular (alimentado por convertidor LM2596 a 5V) |
 
 ---
 
@@ -219,7 +220,76 @@ recinto-control/
 
 ---
 
-## 8. PROTOCOLO DE OPERACIÓN Y VALIDACIÓN RÁPIDA
+## 8. FASE 3: SEÑALIZACIÓN ACÚSTICA (BUZZER ACTIVO) CON DRIVER NPN 2N2222A
+
+### A. Especificaciones del Componente y Principio de Operación
+* **Componente:** Buzzer electromagnético activo de 5V CC con oscilador interno (etiqueta superior `⊕ REMOVE AFTER WASHING`).
+* **Frecuencia del Oscilador:** ~2700 Hz (tono acústico agudo predeterminado de fábrica).
+* **Control Digital:** Solo requiere nivel lógico continuo DC (`HIGH` = 3.3V activa sonido, `LOW` = 0V silencio). No requiere modulación PWM ni librerías de generación de tonos (`tone()` / `ledcWrite`).
+* **Consumo Eléctrico:** ~18 mA a 25 mA alimentado a 3.3V (~30 mA a 5V).
+
+### B. Análisis de Ingeniería Eléctrica: ¿Por qué Driver NPN y no Resistencia Serie?
+1. **Fallo del Método de Resistencia en Serie ($220\text{ }\Omega$):**
+   * La bobina interna del zumbador presenta una impedancia equivalente de aproximadamente $R_{buzzer} \approx 160\text{ }\Omega$.
+   * Si se conecta el buzzer en serie con una resistencia limitadora de $220\text{ }\Omega$ directamente a un pin de 3.3V del ESP32-S3, se forma un divisor de tensión:
+     $$V_{buzzer} = 3.3\text{ V} \times \frac{160\text{ }\Omega}{220\text{ }\Omega + 160\text{ }\Omega} = 3.3\text{ V} \times \frac{160}{380} \approx 1.38\text{ V}$$
+   * Con solo $1.38\text{ V}$, el oscilador interno queda por debajo del umbral mínimo de operación; el buzzer no vibra o produce un zumbido imperceptible.
+   * Por otro lado, si se conectase directo al pin sin resistencia, el consumo de $\sim 30\text{ mA}$ excede los límites seguros continuos del ESP32-S3 y la fuerza contraelectromotriz (inductancia) de la bobina daña el microcontrolador.
+
+2. **Solución Implementada: Conmutador en Lado Bajo (*Low-Side Switch*) con Transistor 2N2222A:**
+   * Se utiliza un transistor NPN de conmutación rápida **2N2222A** con una resistencia de base de **$1\text{ k}\Omega$** conectada al **GPIO 42**.
+   * **Cálculo de Corriente de Base ($I_B$):**
+     $$I_B = \frac{V_{GPIO} - V_{BE}}{R_B} = \frac{3.3\text{ V} - 0.7\text{ V}}{1000\text{ }\Omega} = \frac{2.6\text{ V}}{1000\text{ }\Omega} = 2.6\text{ mA}$$
+   * **Protección del ESP32:** El pin GPIO 42 solo suministra un consumo insignificante de **$2.6\text{ mA}$**, perfectamente seguro para el chip.
+   * **Saturación Completa del Transistor:** Con una ganancia en saturación forzada $\beta_{sat} \approx 10$, se garantiza una corriente de colector disponible de $I_{C(sat)} = \beta_{sat} \times I_B = 10 \times 2.6\text{ mA} = 26\text{ mA}$, suficiente para la demanda del buzzer. La caída colector-emisor en saturación es mínima ($V_{CE(sat)} \approx 0.1\text{ V}$), entregando $3.2\text{ V}$ íntegros a la bobina del buzzer.
+
+### C. Justificación de Asignación de Pines: ¿Por qué GPIO 42 y NUNCA GPIO 47?
+* ⚠️ **PROHIBICIÓN ESTRICTA DE GPIO 47:** En algunas guías genéricas se sugiere el pin 47 para actuadores. En este diseño, **GPIO 47 está asignado de forma inamovible como MISO (Master In Slave Out) del bus SPI del RFID RC522**. Conectar el buzzer en el pin 47 anularía por completo la lectura de tarjetas.
+* 🟢 **SELECCIÓN DE GPIO 42:**
+  - Pin libre en la regleta derecha de la placa (PCB V1695).
+  - No colisiona con el bus de la cámara OV5640 (pines 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 17, 18).
+  - No interfiere con el bus Octal SPI de la memoria PSRAM de 8 MB (pines 33 al 37).
+  - No interfiere con la consola USB-UART (pines 43 y 44).
+  - No es pin de strapping de arranque crítico.
+
+### D. Esquema del Circuito y Conexión Física (TO-92)
+```text
+               +3.3V (Riel Protoboard MB102)
+                     │
+                     ▲
+                 ┌───────┐
+                 │  (+)  │
+                 │ BUZZER│ (Zumbador Activo 5V)
+                 │  (-)  │
+                 └───────┘
+                     │
+                     ▼
+                 Colector (Pin 3)
+                   ┌───┐
+  GPIO 42 ──[1kΩ]──┤ B │  Transistor NPN 2N2222A
+                   └───┘
+                 Emisor (Pin 1)
+                     │
+                     ▼
+               GND (Masa Común con ESP32)
+```
+
+**Patillaje físico del Transistor 2N2222A (Encapsulado TO-92, cara plana mirando de frente):**
+* **Pin 1 (Izquierda) — Emisor:** Conectado directamente al riel azul de masa común (`GND`).
+* **Pin 2 (Centro) — Base:** Conectado a la resistencia de $1\text{ k}\Omega$ (Marrón-Negro-Rojo), la cual va al pin **GPIO 42** del ESP32-S3.
+* **Pin 3 (Derecha) — Colector:** Conectado a la pata corta / negativa `(-)` del buzzer.
+* **Pata larga / positiva `(+)` del Buzzer:** Conectada directamente al riel rojo de **3.3V** de la protoboard.
+
+### E. Patrones Acústicos Implementados en Firmware
+| Patrón Acústico | Función en Firmware | Duración y Frecuencia | Evento Asociado |
+| :--- | :--- | :--- | :--- |
+| **Bip de Arranque** | `beepStartup()` | 1 pulso de 80 ms | Inicialización correcta del sistema y autodiagnóstico de periféricos |
+| **Acceso Autorizado** | `beepSuccess()` | 1 pulso de 150 ms | Tarjeta válida registrada (`6C8D1B06` - Socio Activo #2) |
+| **Acceso Denegado** | `beepDenied()` | 3 pulsos de 80 ms (intervalos de 80 ms) | Tarjeta bloqueada (`73230E06`) o credencial no registrada |
+
+---
+
+## 9. PROTOCOLO DE OPERACIÓN Y VALIDACIÓN RÁPIDA
 
 ### Cómo iniciar o reiniciar el sistema completo:
 1. En tu terminal PowerShell:
@@ -232,28 +302,41 @@ recinto-control/
 3. Enciende el ESP32 y el módulo MB102 (3.3V).
 4. El monitor serie del ESP32 (115200 baudios) confirmará:
    ```text
-   ==================================================
-     ESP32-S3 N16R8 - FASE 2: CAM + IR + RFID RC522
-   ==================================================
-   [OK] Sensor IR inicializado en GPIO 1 (Estado inicial: LIBRE)
-   Inicializando bus SPI para RFID RC522...
-     -> SCK: GPIO 14 | MOSI: GPIO 21 | MISO: GPIO 47 | SDA(SS): GPIO 2 | RST: GPIO 48
-     -> Registro VersionReg RC522: 0x82 (MFRC522 Clon funcional - OK)
-   Inicializando camara OV5640...
-   [OK] Camara OV5640 inicializada correctamente.
-   WIFI CONECTADO
-     IP Local Camara: http://192.168.1.111
+   ==============================================================
+      TEST EXCLUSIVO DE DIAGNÓSTICO RFID RC522 - ESP32-S3
+   ==============================================================
+   Configuración de Pines SPI:
+     -> SDA (SS) : GPIO 2
+     -> SCK      : GPIO 14
+     -> MOSI     : GPIO 21
+     -> MISO     : GPIO 47
+     -> RST      : GPIO 48
+     -> BUZZER   : GPIO 42 (Transistor 2N2222A)
+   [PASO 1] Inicializando bus SPI por hardware...
+   [PASO 2] Inicializando chip MFRC522 (PCD_Init)...
+   [OK] Lector detectado: 0x82 (Version clon funcional - OK)
+   [ESTADO] Listo. Acerca una tarjeta al lector...
    ```
 5. **Pruebas en tiempo real:**
+   * **Arranque:** Al encender o resetear, el buzzer emite un micro-bip de 80 ms confirmando que el GPIO 42 y el transistor operan correctamente.
+   * **RFID Denegado:** Al pasar la tarjeta `73230E06`, el monitor serie marca `🔴 [ACCESO DENEGADO]` y el buzzer emite **3 bips rápidos de advertencia**.
+   * **RFID Concedido:** Al pasar la tarjeta `6C8D1B06`, el monitor serie marca `🟢 [ACCESO CONCEDIDO]` y el buzzer emite **1 bip largo de bienvenida (150 ms)**.
    * **Paso IR:** Al pasar la mano a 5 cm del sensor IR, el panel web conmuta a 🔴 **DETECTADO** y suma +1 activación.
-   * **RFID Denegado:** Al pasar la tarjeta `73230E06`, el panel destella en rojo con **ACCESO DENEGADO / CREDENCIAL BLOQUEADA**.
-   * **RFID Concedido:** Al pasar la tarjeta `6C8D1B06`, el panel destella en verde con **ACCESO CONCEDIDO / AUTORIZADA**.
    * **Cámara OV5640 + YOLO:** Video en vivo continuo con conteo instantáneo de personas presentes.
 
 ---
 
-## 9. REGLAS PARA LAS PRÓXIMAS FASES (HOJA DE RUTA)
+## 10. REGLAS PARA LAS PRÓXIMAS FASES (HOJA DE RUTA Y ACTUADORES)
 
-* **Fase 3 (Señalización):** Integración secuencial de LED verde (autorizado), LED rojo (denegado) y buzzer con transistor 2N2222A.
-* **Fase 4 (Servomotor Maqueta):** El servo SG90 solo se utilizará como demostración a escala; se alimentará de forma externa con GND común para proteger al microcontrolador de caídas de tensión.
-* **Fase 6 (Segundo Sensor IR):** Solo cuando se disponga físicamente del segundo sensor se habilitará la lógica de dirección de paso (entrada vs. salida) y aforo acumulado del recinto.
+* **Fase 3 (Finalización de Señalización):**
+  * Conexión de **LED Verde (GPIO 19)** con resistencia de $220\text{ }\Omega$ para indicador visual de acceso concedido.
+  * Conexión de **LED Rojo (GPIO 20)** con resistencia de $220\text{ }\Omega$ para indicador visual de acceso denegado.
+* **Fase 4 (Servomotor de Barrera - Arquitectura de Potencia):**
+  * **Problema del MB102:** El regulador lineal AMS1117-5.0 del módulo MB102 se sobrecalentaría críticamente si intenta bajar de 12V a 5V los 600-800 mA que consume un servomotor en movimiento ($P = 7\text{ V} \times 0.6\text{ A} \approx 4.2\text{ W}$, lo que causaría corte térmico y reinicio del ESP32).
+  * **Solución de Potencia:** Se utilizará la fuente externa de pared **12V 2A** conectada a un convertidor conmutado **Step-Down LM2596** calibrado con multímetro exactamente a **$5.0\text{ V}$**.
+  * **Regla de Conexión del Servo:**
+    - Cable Rojo (VCC) del Servo -> Salida +5V del LM2596.
+    - Cable Marrón/Negro (GND) del Servo -> Salida GND del LM2596 e interconectado a la masa común (GND) de todo el sistema.
+    - Cable Naranja/Amarillo (PWM) del Servo -> Pin GPIO designado del ESP32-S3 (señal de 3.3V compatible con entradas lógicas del servomotor).
+* **Fase 6 (Segundo Sensor IR):**
+  * Se reservará un GPIO adicional para implementar la discriminación direccional de paso (Entrada vs. Salida) y el balance acumulativo de aforo.
