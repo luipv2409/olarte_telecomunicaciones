@@ -56,6 +56,39 @@ class Settings(BaseSettings):
         description="Bandera para habilitar o deshabilitar consultas a DeepSeek Vision"
     )
 
+    CONTINUOUS_CAPTURE_ENABLED: bool = Field(
+        default=False,
+        description="Si es true, consulta la cámara periódicamente (consume ESP32). Por defecto solo se captura al activarse el IR"
+    )
+
+    BURST_FRAMES: int = Field(
+        default=5,
+        ge=1,
+        le=10,
+        description="Cantidad de fotos que se piden al ESP32 por activación del IR"
+    )
+
+    BURST_WINDOW_SECONDS: float = Field(
+        default=1.0,
+        ge=0.2,
+        le=5.0,
+        description="Ventana de tiempo en la que se reparten las fotos de la ráfaga"
+    )
+
+    BURST_COOLDOWN_SECONDS: float = Field(
+        default=3.0,
+        ge=0.0,
+        le=60.0,
+        description="Tiempo mínimo entre ráfagas para no sobrecargar el ESP32"
+    )
+
+    BURST_MIN_PERSON_FRAMES: int = Field(
+        default=2,
+        ge=1,
+        le=10,
+        description="Fotos de la ráfaga en las que debe aparecer una persona para confirmar PERSONA"
+    )
+
     YOLO_MODEL_NAME: str = Field(
         default="yolov8n.pt",
         description="Modelo de YOLO ligero a utilizar en CPU"

@@ -60,3 +60,4 @@ Cumple parcialmente: detecta y registra, pero no controla el acceso.
 - Mover la lista de tarjetas autorizadas al backend.
 - Persistir `recinto_events.db` en un volumen Docker.
 - Mover credenciales a `secrets.h`.
+

@@ -14,6 +14,7 @@ from app.config import settings
 from app.camera_client import ESP32CameraClient
 from app.detector import PersonDetector
 from app.deepseek_client import DeepSeekVisionClient
+from app.vision_burst import decide_verdict
 
 # Configuración de registro
 logging.basicConfig(
@@ -51,9 +52,35 @@ def init_sqlite():
                 conn.execute("ALTER TABLE ir_events ADD COLUMN uid TEXT")
             if "card_holder" not in cols:
                 conn.execute("ALTER TABLE ir_events ADD COLUMN card_holder TEXT")
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS vision_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    trigger_event_id TEXT,
+                    verdict TEXT,
+                    frames_requested INTEGER,
+                    frames_analyzed INTEGER,
+                    person_frames INTEGER,
+                    max_person_confidence REAL,
+                    objects TEXT,
+                    inference_ms REAL,
+                    created_at TEXT
+                )
+            """)
             conn.commit()
     except Exception as e:
         logger.error("Error al inicializar SQLite: %s", e)
+
+def save_vision_event_db(trigger_event_id, verdict, frames_requested, frames_analyzed, person_frames, max_conf, objects_json, inference_ms, created_at):
+    """Guarda solo el resultado del análisis (nunca las imágenes)."""
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.execute("""
+                INSERT INTO vision_events (trigger_event_id, verdict, frames_requested, frames_analyzed, person_frames, max_person_confidence, objects, inference_ms, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (trigger_event_id, verdict, frames_requested, frames_analyzed, person_frames, max_conf, objects_json, inference_ms, created_at))
+            conn.commit()
+    except Exception as e:
+        logger.error("Error al guardar evento de visión en SQLite: %s", e)
 
 def save_event_db(event_id, sensor_id, event_type, occurred_at, received_at, is_simulated, uid="", card_holder=""):
     try:
@@ -122,6 +149,12 @@ class SystemState:
         self.firmware_version: str = "3.0.0-fase3"
         self.wifi_rssi: int = -52
 
+        # Visión por ráfaga disparada por el IR
+        self.burst_running: bool = False
+        self.last_burst_end_ts: float = 0.0
+        self.vision_total_bursts: int = 0
+        self.vision_last: Optional[Dict[str, Any]] = None
+
 
 state = SystemState()
 camera_client = ESP32CameraClient(base_url=settings.ESP32_BASE_URL)
@@ -136,15 +169,113 @@ deepseek_client = DeepSeekVisionClient(
 )
 
 
+async def run_vision_burst(trigger_event_id: str):
+    """
+    Ráfaga disparada por el IR: pide N fotos al ESP32 en una ventana corta, las clasifica
+    con YOLO en el backend (no en el ESP32) y decide PERSONA / OBJETO / INCIERTO.
+    Las imágenes no se guardan en disco; solo el resultado en SQLite.
+    """
+    state.burst_running = True
+    start = time.perf_counter()
+    try:
+        frames, errors = await camera_client.fetch_burst(settings.BURST_FRAMES, settings.BURST_WINDOW_SECONDS)
+
+        capture_ms = round((time.perf_counter() - start) * 1000.0, 1)
+
+        if frames:
+            state.camera_connected = True
+            state.camera_error = None
+            state.latest_capture_ts = time.time()
+        else:
+            state.camera_connected = False
+            state.camera_error = errors[-1] if errors else "Sin fotos en la ráfaga"
+
+        results = []
+        for jpeg in frames:
+            results.append(await asyncio.to_thread(detector.classify, jpeg))
+
+        decision = decide_verdict(results, settings.BURST_MIN_PERSON_FRAMES)
+
+        # Mejor fotograma: el que tenga la persona de mayor confianza (o el último si no hay)
+        if frames:
+            best_idx = len(frames) - 1
+            best_conf = -1.0
+            for i, r in enumerate(results):
+                conf = max([p["confidence"] for p in r.get("persons", [])] or [0.0])
+                if conf > best_conf:
+                    best_conf, best_idx = conf, i
+            best = results[best_idx]
+            state.latest_raw_jpeg = frames[best_idx]
+            state.latest_annotated_jpeg = await asyncio.to_thread(
+                detector.annotate, frames[best_idx], best.get("persons", []), best.get("objects", []), decision["verdict"]
+            )
+            state.latest_count = len(best.get("persons", []))
+            state.latest_boxes = best.get("persons", [])
+
+        elapsed_ms = round((time.perf_counter() - start) * 1000.0, 1)
+        state.latest_inference_ms = elapsed_ms
+        state.total_frames_processed += len(frames)
+        state.vision_total_bursts += 1
+        created_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+        state.vision_last = {
+            **decision,
+            "trigger_event_id": trigger_event_id,
+            "frames_requested": settings.BURST_FRAMES,
+            "frames_captured": len(frames),
+            "capture_errors": errors,
+            "total_ms": elapsed_ms,
+            "capture_ms": capture_ms,
+            "analysis_ms": round(elapsed_ms - capture_ms, 1),
+            "time": time.strftime("%H:%M:%S"),
+            "created_at": created_at,
+        }
+
+        import json as _json
+        save_vision_event_db(
+            trigger_event_id, decision["verdict"], settings.BURST_FRAMES, decision["frames_analyzed"],
+            decision["person_frames"], decision["max_person_confidence"],
+            _json.dumps(decision["objects"], ensure_ascii=False), elapsed_ms, created_at
+        )
+        logger.info("[VISIÓN] Ráfaga %d/%d fotos -> %s (personas en %d fotos, %.0f ms)",
+                    len(frames), settings.BURST_FRAMES, decision["verdict"], decision["person_frames"], elapsed_ms)
+    except Exception as e:
+        logger.error("Error en ráfaga de visión: %s", str(e))
+        state.camera_error = str(e)
+    finally:
+        state.burst_running = False
+        state.last_burst_end_ts = time.time()
+
+
+def maybe_start_burst(trigger_event_id: str) -> str:
+    """Lanza una ráfaga si no hay otra en curso y ya pasó el tiempo de enfriamiento."""
+    if not settings.ESP32_BASE_URL:
+        return "skipped_no_camera_url"
+    if state.burst_running:
+        return "skipped_running"
+    if time.time() - state.last_burst_end_ts < settings.BURST_COOLDOWN_SECONDS:
+        return "skipped_cooldown"
+    state.burst_running = True  # reservar de inmediato para evitar doble disparo
+    asyncio.create_task(run_vision_burst(trigger_event_id))
+    return "started"
+
+
 async def camera_worker():
     """
-    Tarea de fondo periódica:
+    Tarea de fondo. Por defecto solo carga el modelo YOLO; la captura es por eventos del IR.
+    Si CONTINUOUS_CAPTURE_ENABLED=true, consulta /capture periódicamente (modo antiguo, carga al ESP32):
     1. Consulta /capture en el ESP32.
     2. Ejecuta la inferencia de personas con YOLO (CPU) en un hilo no bloqueante.
     3. Actualiza el estado en memoria.
     """
+    await asyncio.to_thread(detector.initialize)
+
+    if not settings.CONTINUOUS_CAPTURE_ENABLED:
+        logger.info("Captura continua DESACTIVADA: la cámara solo se consulta cuando el IR detecta algo (%d fotos en %.1f s).",
+                    settings.BURST_FRAMES, settings.BURST_WINDOW_SECONDS)
+        return
+
     logger.info("Iniciando tarea de captura periódica hacia: %s", settings.ESP32_BASE_URL or "[No configurado]")
-    detector.initialize()
 
     while True:
         try:
@@ -339,6 +470,15 @@ async def get_status():
             ]
         },
         "deepseek": deepseek_client.get_status_info(),
+        "vision": {
+            "mode": "continuous" if settings.CONTINUOUS_CAPTURE_ENABLED else "ir_triggered_burst",
+            "burst_frames": settings.BURST_FRAMES,
+            "burst_window_seconds": settings.BURST_WINDOW_SECONDS,
+            "cooldown_seconds": settings.BURST_COOLDOWN_SECONDS,
+            "burst_running": state.burst_running,
+            "total_bursts": state.vision_total_bursts,
+            "last": state.vision_last
+        },
         "fps_estimate": state.fps_estimate,
         "disclaimer": "Estimación instantánea de personas presentes en el encuadre. No acumulativo ni biométrico."
     }
@@ -421,12 +561,14 @@ async def receive_sensor_event(device_id: str, payload: Dict[str, Any]):
         }
 
     # Transición de estado del sensor IR
+    burst_status = "not_applicable"
     if event_type == "IR_INTERRUPTED":
         state.ir_state = "DETECTADO"
         state.ir_is_detected = True
         state.ir_total_activations += 1
         state.ir_last_detection_time = time.strftime("%H:%M:%S")
         logger.info("[IR] -> OBJETO DETECTADO (Total: %d)", state.ir_total_activations)
+        burst_status = maybe_start_burst(event_id or f"evt-{int(time.time()*1000)}")
     elif event_type == "IR_CLEARED":
         state.ir_state = "LIBRE"
         state.ir_is_detected = False
@@ -451,7 +593,8 @@ async def receive_sensor_event(device_id: str, payload: Dict[str, Any]):
         "event_id": event_id,
         "current_state": state.ir_state,
         "total_activations": state.ir_total_activations,
-        "rfid_reads": state.rfid_total_reads
+        "rfid_reads": state.rfid_total_reads,
+        "vision_burst": burst_status
     }
 
 
@@ -578,6 +721,22 @@ async def get_events_history():
         "last_detection_time": state.ir_last_detection_time,
         "events": state.ir_recent_events
     }
+
+
+@app.get("/api/v1/vision/last")
+async def get_last_vision():
+    """Último veredicto de la ráfaga de visión (PERSONA / OBJETO / INCIERTO / SIN_CAPTURA)."""
+    return {
+        "burst_running": state.burst_running,
+        "total_bursts": state.vision_total_bursts,
+        "last": state.vision_last
+    }
+
+
+@app.post("/api/v1/vision/trigger")
+async def trigger_vision_manually():
+    """Dispara una ráfaga manualmente (pruebas), respetando el enfriamiento."""
+    return {"vision_burst": maybe_start_burst(f"manual-{int(time.time()*1000)}")}
 
 
 @app.get("/api/count")

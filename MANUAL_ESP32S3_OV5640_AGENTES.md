@@ -72,8 +72,8 @@ El archivo `app_httpd.cpp` implementa `startCameraServer()` y la interfaz web. *
 #include "board_config.h"
 
 // Credenciales: introducir localmente; NO publicar contraseñas en repositorios.
-const char* ssid = "TU_SSID";
-const char* password = "TU_PASSWORD";
+const char* ssid = "JAPON";
+const char* password = "1a.2*3-GLPV";
 
 // Implementadas por app_httpd.cpp del ejemplo oficial.
 void startCameraServer();

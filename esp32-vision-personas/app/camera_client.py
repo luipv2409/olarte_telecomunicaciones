@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import time
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 import httpx
 
 logger = logging.getLogger("camera_client")
@@ -88,6 +88,36 @@ class ESP32CameraClient:
             err = f"Error inesperado al consultar cámara: {type(e).__name__}: {str(e)}"
             self._record_error(err)
             return False, None, err
+
+    async def fetch_burst(self, count: int, window_seconds: float) -> Tuple[List[bytes], List[str]]:
+        """
+        Pide `count` fotos repartidas uniformemente en `window_seconds` (ej: 5 fotos en 1 s).
+        Las peticiones son secuenciales porque el ESP32 atiende una captura a la vez.
+        Aborta tras 2 fallos consecutivos para no bloquear al ESP32 ni al backend.
+        Retorna (lista_de_jpegs, lista_de_errores).
+        """
+        frames: List[bytes] = []
+        errors: List[str] = []
+        interval = window_seconds / max(1, count)
+        t0 = time.perf_counter()
+        consecutive_failures = 0
+
+        for i in range(count):
+            wait = (t0 + i * interval) - time.perf_counter()
+            if wait > 0:
+                await asyncio.sleep(wait)
+
+            ok, data, err = await self.fetch_frame()
+            if ok and data:
+                frames.append(data)
+                consecutive_failures = 0
+            else:
+                errors.append(err or "error desconocido")
+                consecutive_failures += 1
+                if consecutive_failures >= 2:
+                    break
+
+        return frames, errors
 
     def _record_error(self, err_msg: str):
         self.is_connected = False

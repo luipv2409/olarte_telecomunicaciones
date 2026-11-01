@@ -158,3 +158,73 @@ class PersonDetector:
                 "error": f"Fallo al procesar imagen: {str(e)}",
                 "disclaimer": "Estimación no disponible por error de procesamiento."
             }
+
+    def classify(self, jpeg_bytes: bytes) -> Dict[str, Any]:
+        """
+        Clasifica un fotograma sin filtrar por clase: separa 'person' del resto de objetos COCO.
+        Se usa en la ráfaga del IR para decidir si lo detectado es una persona u otro objeto.
+        Retorna {"persons": [...], "objects": [...], "error": Optional[str]}.
+        """
+        if not self.is_initialized:
+            self.initialize()
+        if not self.is_initialized or self._model is None:
+            return {"persons": [], "objects": [], "error": self.initialization_error or "Detector no inicializado"}
+
+        try:
+            image = Image.open(io.BytesIO(jpeg_bytes)).convert("RGB")
+            results = self._model.predict(
+                source=image,
+                conf=self.confidence_threshold,
+                verbose=False,
+                device="cpu"
+            )
+            names = getattr(self._model, "names", {}) or {}
+            persons: List[Dict[str, Any]] = []
+            objects: List[Dict[str, Any]] = []
+
+            for result in results:
+                boxes = result.boxes
+                if boxes is None or len(boxes) == 0:
+                    continue
+                for box in boxes:
+                    cls_id = int(box.cls[0].item())
+                    conf = float(box.conf[0].item())
+                    raw_coords = box.xyxy[0]
+                    coords = raw_coords.tolist() if hasattr(raw_coords, "tolist") else list(raw_coords)
+                    item = {
+                        "class": "person" if cls_id == self.COCO_PERSON_CLASS_ID else str(names.get(cls_id, cls_id)),
+                        "confidence": round(conf, 3),
+                        "box": [int(v) for v in coords],
+                    }
+                    if cls_id == self.COCO_PERSON_CLASS_ID:
+                        persons.append(item)
+                    else:
+                        objects.append(item)
+
+            return {"persons": persons, "objects": objects, "error": None}
+        except Exception as e:
+            logger.error("Error en clasificación YOLO: %s", str(e))
+            return {"persons": [], "objects": [], "error": f"Fallo al procesar imagen: {str(e)}"}
+
+    def annotate(self, jpeg_bytes: bytes, persons: List[Dict[str, Any]], objects: List[Dict[str, Any]], verdict: str) -> bytes:
+        """
+        Dibuja personas (cian), otros objetos (naranja) y el veredicto sobre un fotograma.
+        Si falla, devuelve el JPEG original.
+        """
+        try:
+            image = Image.open(io.BytesIO(jpeg_bytes)).convert("RGB")
+            draw = ImageDraw.Draw(image)
+            font = ImageFont.load_default()
+            for items, color in ((persons, "#00e5ff"), (objects, "#ff9800")):
+                for it in items:
+                    x1, y1, x2, y2 = it["box"]
+                    draw.rectangle([x1, y1, x2, y2], outline=color, width=3)
+                    draw.text((x1 + 2, max(0, y1 - 14)), f"{it['class']} {int(it['confidence'] * 100)}%", fill=color, font=font)
+            draw.rectangle([0, image.size[1] - 22, image.size[0], image.size[1]], fill="#111827")
+            draw.text((8, image.size[1] - 18), f"Veredicto: {verdict}", fill="#38bdf8", font=font)
+            buf = io.BytesIO()
+            image.save(buf, format="JPEG", quality=85)
+            return buf.getvalue()
+        except Exception as e:
+            logger.error("Error al anotar imagen: %s", str(e))
+            return jpeg_bytes
