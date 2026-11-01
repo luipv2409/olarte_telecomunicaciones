@@ -50,7 +50,7 @@
   #define SECRET_WIFI_SSID     "JAPON"
   #define SECRET_WIFI_PASSWORD "1a.2*3-GLPV"
   #define SECRET_DEVICE_TOKEN  "esp32_device_secret_token_seguro_fase1"
-  #define BACKEND_BASE_URL     "http://192.168.1.95:8088"
+  #define BACKEND_BASE_URL     "http://192.168.1.13:8088"
 #endif
 
 const char* ssid = SECRET_WIFI_SSID;
